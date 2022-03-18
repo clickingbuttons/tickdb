@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define VEC_DEFAULT_CAPACITY 8
+
 typedef struct vec {
   size_t size; // stride
   size_t capacity;
@@ -13,12 +15,11 @@ typedef struct vec {
 #define vec_init(type) _vec_init(sizeof(type))
 
 static vec _vec_init(size_t size) {
-  const size_t default_capacity = 8;
   vec res = {
     .size = size,
-    .capacity = default_capacity,
+    .capacity = VEC_DEFAULT_CAPACITY,
     .nmemb = 0,
-    .data = malloc(default_capacity * size),
+    .data = malloc(VEC_DEFAULT_CAPACITY * size),
   };
   return res;
 }
