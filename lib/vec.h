@@ -29,7 +29,7 @@ static void vec_resize(vec* v, size_t nmemb) {
 }
 
 #define vec_push(v, val) { \
-  typeof(val) copy = val;     \
+  typeof(val) copy = val;  \
   _vec_push(v, &copy);     \
 }
 
