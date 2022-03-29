@@ -9,7 +9,7 @@ typedef struct vec {
   size_t size; // stride
   size_t capacity;
   size_t nmemb;
-  void* data;
+  char* data;
 } vec;
 
 #define vec_init(type) _vec_init(sizeof(type))
@@ -19,28 +19,31 @@ static vec _vec_init(size_t size) {
     .size = size,
     .capacity = VEC_DEFAULT_CAPACITY,
     .nmemb = 0,
-    .data = malloc(VEC_DEFAULT_CAPACITY * size),
+    .data = (char*)malloc(VEC_DEFAULT_CAPACITY * size),
   };
   return res;
 }
 
 static void vec_resize(vec* v, size_t nmemb) {
   v->capacity = nmemb;
-  v->data = reallocarray(v->data, nmemb, v->size);
+  v->data = (char*)realloc(v->data, nmemb * v->size);
 }
 
-#define vec_push(v, val) { \
+#define vec_push(v, val) ({ \
   typeof(val) copy = val;  \
   _vec_push(v, &copy);     \
-}
+})
 
-static void _vec_push(vec *v, void* value_ptr) {
+static void* _vec_push(vec *v, void* value_ptr) {
   if (v->nmemb + 1 > v->capacity) {
     vec_resize(v, v->capacity * 2);
   }
 
-  memcpy((char*)v->data + (v->nmemb * v->size), value_ptr, v->size);
+  void* dest = v->data + (v->nmemb * v->size);
+  memcpy(dest, value_ptr, v->size);
   v->nmemb += 1;
+
+  return dest;
 }
 
 static void vec_free(vec* v) {

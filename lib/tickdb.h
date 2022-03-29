@@ -1,5 +1,6 @@
 #pragma once
 
+#include "hashmap.h"
 #include "vec.h"
 
 #include <stddef.h>
@@ -36,7 +37,6 @@ typedef struct tickdb_column {
   void* data;
   size_t capacity;
   size_t length;
-  bool open;
 } tickdb_column;
 
 typedef struct tickdb_schema {
@@ -60,15 +60,15 @@ typedef struct tickdb_block {
   int64_t symbol;
   int64_t ts_min;
   size_t n_bytes;
-  size_t disk_offset;
+  size_t offset;
 } tickdb_block;
 
 typedef struct tickdb_table {
   tickdb_schema schema;
   size_t column_index;
-  vec** blocks;
-  tickdb_block* block;
-  size_t num_blocks;
+  hashmap blocks; // symbol (int): vec<tickdb_block>
+  vec symbols;
+  hashmap symbol_uids; // symbol (char*): int
 } tickdb_table;
 
 tickdb_table tickdb_table_init(tickdb_schema* schema);

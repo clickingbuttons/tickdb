@@ -33,19 +33,6 @@ void tickdb_schema_add(tickdb_schema* schema, char* name, tickdb_column_type typ
   schema->column_count += 1;
 }
 
-tickdb_table tickdb_table_init(tickdb_schema* schema) {
-  tickdb_schema schema_copy;
-  memcpy(&schema_copy, schema, sizeof(tickdb_schema));
-  tickdb_table res = {
-    .schema = schema_copy,
-
-    .blocks = NULL,
-    .num_blocks = 0,
-  };
-
-  return res;
-}
-
 static size_t column_size(tickdb_column_type type) {
   switch (type) {
     case TICKDB_SYMBOL8:
@@ -72,12 +59,27 @@ static size_t column_size(tickdb_column_type type) {
   }
 }
 
+tickdb_table tickdb_table_init(tickdb_schema* schema) {
+  tickdb_schema schema_copy;
+  memcpy(&schema_copy, schema, sizeof(tickdb_schema));
+  size_t sym_size = column_size(schema->sym_type);
+  tickdb_table res = {
+    .schema = schema_copy,
+
+    .blocks = hm_init(sym_size, tickdb_block),
+    .symbols = vec_init(sym_size * 8),
+    .symbol_uids = _hm_init(sym_size * 8, sym_size),
+  };
+
+  return res;
+}
+
 static void open_columns(tickdb_table* table) {
   char col_path[PATH_MAX];
 
   for (int i = 0; i < table->schema.column_count; i++) {
     tickdb_column* col = &table->schema.columns[i];
-    if (!col->open) {
+    if (col->data == NULL) {
       int fd = open(col_path, O_RDWR);
       col->data = mmap(NULL, GIGABYTES(1), PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
     }
@@ -87,13 +89,13 @@ static void open_columns(tickdb_table* table) {
 void tickdb_table_close(tickdb_table* table) {
   for (int i = 0; i < table->schema.column_count; i++) {
     tickdb_column* col = &table->schema.columns[i];
-    if (col->open)
+    if (col->data != NULL)
       munmap(col->data, col->capacity * column_size(col->type));
   }
 
-  for (int i = 0; i < table->num_blocks; i++)
-    free(table->blocks[i]);
-  table->num_blocks = 0;
+  hm_free(&table->blocks);
+  vec_free(&table->symbols);
+  hm_free(&table->symbol_uids);
 }
 
 static void table_write_data(tickdb_table* table, void* data, size_t size) {
@@ -104,33 +106,43 @@ static void table_write_data(tickdb_table* table, void* data, size_t size) {
 }
 
 static inline tickdb_block* get_block(tickdb_table* table, int64_t symbol, int64_t epoch_nanos) {
-  for (size_t i = 0; i < table->num_blocks; i++) {
-    tickdb_block* b = table->blocks[i];
+  vec* blocks = _hm_get(&table->blocks, &symbol);
+  if (blocks == NULL) {
+    vec new_blocks = vec_init(tickdb_block);
+    blocks = (vec*)hm_put(&table->blocks, symbol, new_blocks);
+  }
+
+  tickdb_block* data = (tickdb_block*)blocks->data;
+  for (size_t i = 0; i < blocks->size; i++) {
+    tickdb_block* b = data + i;
     if (b->symbol == symbol && epoch_nanos >= b->ts_min && b->n_bytes < table->schema.block_size) {
       return b;
     }
   }
 
-  tickdb_block* newBlock = malloc(sizeof(tickdb_block));
-  newBlock->symbol = symbol;
-  newBlock->ts_min = epoch_nanos;
-  newBlock->n_bytes = 0;
-
-  return newBlock;
+  tickdb_block new_block = {
+    .symbol = symbol,
+    .ts_min = epoch_nanos,
+    .n_bytes = 0,
+  };
+  return vec_push(blocks, new_block);
 }
 
 size_t tickdb_table_stoi(tickdb_table* table, char* symbol) {
-  // TODO: hashmap
+  size_t* sym = _hm_get(&table->symbol_uids, symbol);
+  if (sym == NULL) {
+    vec_push(&table->symbols, symbol);
+  }
   return 0;
 }
 
 char* tickdb_table_itos(tickdb_table* table, int64_t symbol) {
-  // TODO: vector
-  return "asdf";
+  char** symbols = (char**)table->symbols.data;
+  return symbols[symbol - 1];
 }
 
 void tickdb_table_write(tickdb_table* table, char* symbol, int64_t epoch_nanos) {
-  table->block = get_block(table, tickdb_table_stoi(table, symbol), epoch_nanos);
+  tickdb_block* block = get_block(table, tickdb_table_stoi(table, symbol), epoch_nanos);
   // TODO: convert epoch_nanos based on time clamps
   table_write_data(table, &epoch_nanos, table->schema.ts_size);
 }

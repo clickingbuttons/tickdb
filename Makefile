@@ -5,11 +5,11 @@ BUILD_DIR ?= ./build
 SRC_DIR ?= ./lib
 LDFLAGS ?= -shared
 
-SRCS := $(shell find $(SRC_DIR) -name *.c)
+SRCS := $(shell find $(SRC_DIR) -name "*.c")
 OBJS := $(SRCS:%=$(BUILD_DIR)/obj/%.o)
 DEPS := $(OBJS:.o=.d)
 
-CFLAGS += -std=c11 -MMD -MP
+CFLAGS += -std=gnu11 -MMD -MP
 
 $(BUILD_DIR)/$(TARGET_LIB): $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS)

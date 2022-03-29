@@ -35,11 +35,11 @@ static hashmap _hm_init(size_t key_size, size_t val_size) {
 
 static void hm_grow(hashmap* hm);
 
-#define hm_put(hm, key, val) { \
+#define hm_put(hm, key, val) ({ \
   typeof(key) key_copy = key;  \
   typeof(val) val_copy = val;  \
   _hm_put(hm, &key_copy, &val_copy);     \
-}
+})
 
 static inline char* hm_get_key_at(hashmap* hm, char* start, size_t index) {
   return start + index * (hm->key_size + hm->val_size);
@@ -53,12 +53,12 @@ static inline char* hm_get_val(hashmap* hm, size_t index) {
   return hm_get_key(hm, index) + hm->key_size;
 }
 
-static void _hm_put(hashmap* hm, void* key, void* val) {
+static void* _hm_put(hashmap* hm, void* key, void* val) {
   uint64_t index = wyhash(key, hm->key_size) & (hm->capacity - 1);
 
   if (memcmp(hm->empty_key, key, hm->key_size) == 0) {
     perror("cannot write 0 key");
-    return;
+    return NULL;
   }
 
   if ((hm->nmemb + 1) > HASHMAP_LOAD_FACTOR * hm->capacity) {
@@ -68,6 +68,7 @@ static void _hm_put(hashmap* hm, void* key, void* val) {
   char* existing_key = hm->data + index * (hm->key_size + hm->val_size);
   if (memcmp(existing_key, key, hm->key_size) == 0) { // overwrite
     memcpy(existing_key + hm->key_size, val, hm->val_size);
+    return existing_key + hm->key_size;
   } else { // insert
     char* offset = hm_get_key(hm, index);
     for (int i = 1; memcmp(offset, hm->empty_key, hm->key_size) != 0; i++) {
@@ -78,6 +79,7 @@ static void _hm_put(hashmap* hm, void* key, void* val) {
     memcpy(offset, key, hm->key_size);
     memcpy(offset + hm->key_size, val, hm->val_size);
     hm->nmemb += 1;
+    return offset + hm->key_size;
   }
 }
 
