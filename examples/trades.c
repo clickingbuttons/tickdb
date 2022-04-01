@@ -4,21 +4,21 @@
 #include <stdlib.h>
 
 typedef struct trade {
-  i64 ts;
+  int64_t ts;
   char* sym;
-  i64 ts_participant;
-  i64 ts_trf;
-  u32 size;
+  int64_t ts_participant;
+  int64_t ts_trf;
+  uint32_t size;
   float price;
-  u32 conditions;
-  u8 error;
-  u8 exchange;
-  u8 tape;
-  u64 id;
-  u64 seq_id;
+  uint32_t conditions;
+  uint8_t error;
+  uint8_t exchange;
+  uint8_t tape;
+  uint64_t id;
+  uint64_t seq_id;
 } trade;
 
-i64 ts = 0;
+int64_t ts = 0;
 
 void generate_trade(trade* trade) {
   trade->ts = ts++;
@@ -48,7 +48,7 @@ int main(void) {
   trade t;
   for (int i = 0; i < num_trades; i++) {
     generate_trade(&t);
-    tickdb_table_write(&trades, t.ts, t.sym);
+    tickdb_table_write(&trades, t.sym, t.ts);
     tickdb_table_write_int64(&trades, t.ts_participant);
     tickdb_table_write_uint64(&trades, t.id);
     tickdb_table_write_uint64(&trades, t.seq_id);

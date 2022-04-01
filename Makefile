@@ -1,27 +1,28 @@
 CC=clang
-TARGET_LIB ?= tickdb.so
+LIB=tickdb
+LIBSO := lib$(LIB).so
 
 BUILD_DIR ?= ./build
 SRC_DIR ?= ./lib
 LDFLAGS ?= -shared
+CFLAGS += -std=gnu11
 
-SRCS := $(shell find $(SRC_DIR) -name "*.c")
+SRCS := $(wildcard lib/*.c)
 OBJS := $(SRCS:%=$(BUILD_DIR)/obj/%.o)
-DEPS := $(OBJS:.o=.d)
 
-CFLAGS += -std=gnu11 -MMD -MP
-
-$(BUILD_DIR)/$(TARGET_LIB): $(OBJS)
+$(BUILD_DIR)/$(LIBSO): $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS)
 
 $(BUILD_DIR)/obj/%.c.o: %.c
-	$(MKDIR_P) $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 .PHONY: clean
 clean:
 	$(RM) -r $(BUILD_DIR)
 
--include $(DEPS)
+-include $(OBJS:.o=.d)
 
-MKDIR_P ?= mkdir -p
+.PHONY: examples
+examples: $(BUILD_DIR)/$(LIBSO)
+	make -C examples

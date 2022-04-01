@@ -67,7 +67,7 @@ typedef struct tickdb_table {
   tickdb_schema schema;
   size_t column_index;
   hashmap blocks; // symbol (int): vec<tickdb_block>
-  vec symbols;
+  vec symbols; // vec<str>
   hashmap symbol_uids; // symbol (char*): int
 } tickdb_table;
 
@@ -83,5 +83,4 @@ void tickdb_table_write_uint32(tickdb_table* table, uint32_t value);
 void tickdb_table_write_uint64(tickdb_table* table, uint64_t value);
 void tickdb_table_write_float(tickdb_table* table, float value);
 void tickdb_table_write_double(tickdb_table* table, double value);
-
 

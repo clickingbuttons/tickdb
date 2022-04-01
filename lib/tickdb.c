@@ -1,4 +1,5 @@
 #include "tickdb.h"
+#include "string.h"
 
 #include <fcntl.h>
 #include <linux/limits.h>
@@ -6,7 +7,7 @@
 #include <string.h>
 #include <sys/mman.h>
 
-#define GIGABYTES(amount) amount * 1000 * 1000 * 1000
+#define DEFAULT_SYM_CAPACITY 1024
 
 tickdb_schema tickdb_schema_init(char* name, char *ts_partition_fmt, tickdb_column_type sym_type, char* sym_universe) {
   tickdb_schema res = {
@@ -47,13 +48,13 @@ static size_t column_size(tickdb_column_type type) {
     case TICKDB_INT32:
     case TICKDB_UINT32:
     case TICKDB_FLOAT:
-      return 2;
+      return 4;
     case TICKDB_SYMBOL64:
     case TICKDB_CURRENCY:
     case TICKDB_INT64:
     case TICKDB_UINT64:
     case TICKDB_DOUBLE:
-      return 4;
+      return 8;
     case TICKDB_TIMESTAMP:
       return -1;
   }
@@ -67,8 +68,8 @@ tickdb_table tickdb_table_init(tickdb_schema* schema) {
     .schema = schema_copy,
 
     .blocks = hm_init(sym_size, tickdb_block),
-    .symbols = vec_init(sym_size * 8),
-    .symbol_uids = _hm_init(sym_size * 8, sym_size),
+    .symbols = _vec_init(sizeof(string) * DEFAULT_SYM_CAPACITY),
+    .symbol_uids = _hm_init(sizeof(string), sym_size),
   };
 
   return res;
@@ -115,7 +116,7 @@ static inline tickdb_block* get_block(tickdb_table* table, int64_t symbol, int64
   tickdb_block* data = (tickdb_block*)blocks->data;
   for (size_t i = 0; i < blocks->size; i++) {
     tickdb_block* b = data + i;
-    if (b->symbol == symbol && epoch_nanos >= b->ts_min && b->n_bytes < table->schema.block_size) {
+    if (epoch_nanos >= b->ts_min && b->n_bytes < table->schema.block_size) {
       return b;
     }
   }
@@ -131,14 +132,16 @@ static inline tickdb_block* get_block(tickdb_table* table, int64_t symbol, int64
 size_t tickdb_table_stoi(tickdb_table* table, char* symbol) {
   size_t* sym = _hm_get(&table->symbol_uids, symbol);
   if (sym == NULL) {
-    vec_push(&table->symbols, symbol);
+    string sym = string_init(symbol);
+    vec_push(&table->symbols, sym);
+    _hm_put(&table->symbol_uids, &sym, &table->symbols.size);
   }
   return 0;
 }
 
 char* tickdb_table_itos(tickdb_table* table, int64_t symbol) {
-  char** symbols = (char**)table->symbols.data;
-  return symbols[symbol - 1];
+  string* symbols = (string*)table->symbols.data;
+  return symbols[symbol - 1].data;
 }
 
 void tickdb_table_write(tickdb_table* table, char* symbol, int64_t epoch_nanos) {
