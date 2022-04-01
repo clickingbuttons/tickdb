@@ -132,11 +132,11 @@ static inline tickdb_block* get_block(tickdb_table* table, int64_t symbol, int64
 size_t tickdb_table_stoi(tickdb_table* table, char* symbol) {
   size_t* sym = _hm_get(&table->symbol_uids, symbol);
   if (sym == NULL) {
-    string sym = string_init(symbol);
-    vec_push(&table->symbols, sym);
-    _hm_put(&table->symbol_uids, &sym, &table->symbols.size);
+    string s = string_init(symbol);
+    vec_push(&table->symbols, s);
+    sym = (size_t*)_hm_put(&table->symbol_uids, &s, &table->symbols.size);
   }
-  return 0;
+  return *sym;
 }
 
 char* tickdb_table_itos(tickdb_table* table, int64_t symbol) {

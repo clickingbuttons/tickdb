@@ -15,7 +15,7 @@ $(BUILD_DIR)/$(LIBSO): $(OBJS)
 
 $(BUILD_DIR)/obj/%.c.o: %.c
 	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	$(CC) $(CFLAGS) -g -MMD -MP -c $< -o $@
 
 .PHONY: clean
 clean:

@@ -5,7 +5,7 @@
 
 typedef struct trade {
   int64_t ts;
-  char* sym;
+  char sym[4];
   int64_t ts_participant;
   int64_t ts_trf;
   uint32_t size;
@@ -22,10 +22,10 @@ int64_t ts = 0;
 
 void generate_trade(trade* trade) {
   trade->ts = ts++;
-  trade->sym = "000";
-  trade->sym[0] = (rand() % 26);
-  trade->sym[1] = (rand() % 26);
-  trade->sym[2] = (rand() % 26);
+  trade->sym[0] = 'A' + (rand() % 26);
+  trade->sym[1] = 'A' + (rand() % 26);
+  trade->sym[2] = 'A' + (rand() % 26);
+  trade->sym[3] = '\0';
   trade->ts_participant = ts++;
   trade->ts_trf = ts++;
 }

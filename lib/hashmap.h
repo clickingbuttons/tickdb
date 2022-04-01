@@ -57,8 +57,8 @@ static void* _hm_put(hashmap* hm, void* key, void* val) {
   uint64_t index = wyhash(key, hm->key_size) & (hm->capacity - 1);
 
   if (memcmp(hm->empty_key, key, hm->key_size) == 0) {
-    perror("cannot write 0 key");
-    return NULL;
+    fprintf(stderr, "%s\n", "cannot write 0 key");
+    exit(1);
   }
 
   if ((hm->nmemb + 1) > HASHMAP_LOAD_FACTOR * hm->capacity) {
