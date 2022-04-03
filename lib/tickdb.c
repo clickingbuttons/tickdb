@@ -6,32 +6,28 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 
 #define DEFAULT_SYM_CAPACITY 1024
 
 tickdb_schema tickdb_schema_init(char* name, char *ts_partition_fmt, tickdb_column_type sym_type, char* sym_universe) {
-  tickdb_schema res = {
-    // Defaults
+  return (tickdb_schema) {
+    .name = string_init(name),
     .sym_name = "sym",
     .ts_name = "ts",
-    .column_count = 0,
-
+    .partition_fmt = string_init(ts_partition_fmt),
+    .sym_universe = string_init(sym_universe),
+    .columns = vec_init(tickdb_column),
     .sym_type = sym_type,
   };
-  strcpy(res.name, name);
-  strcpy(res.partition_fmt, ts_partition_fmt);
-  strcpy(res.sym_universe, sym_universe);
-
-  return res;
 }
 
 void tickdb_schema_add(tickdb_schema* schema, char* name, tickdb_column_type type) {
-  tickdb_column* col = &schema->columns[schema->column_count];
-  strcpy(col->name, name);
-  col->type = type;
-  col->capacity = 0;
-  col->length = 0;
-  schema->column_count += 1;
+  tickdb_column col = {
+    .name = string_init(name),
+    .type = type,
+  };
+  vec_push(&schema->columns, col);
 }
 
 static size_t column_size(tickdb_column_type type) {
@@ -60,6 +56,22 @@ static size_t column_size(tickdb_column_type type) {
   }
 }
 
+static void open_columns(tickdb_table* table) {
+  char col_path[PATH_MAX];
+
+  tickdb_column* cols = (tickdb_column*) table->schema.columns.data;
+  for (int i = 0; i < table->schema.columns.size; i++) {
+    tickdb_column* col = cols + i;
+    if (col->data == NULL) {
+      snprintf(col_path, PATH_MAX, "data/%s", col->name.data);
+      printf("open col %s\n", col_path);
+      int stats = mkdir("mydir", S_IRWXU | S_IRWXG | S_IRWXO);
+      int fd = open(col_path, O_RDWR);
+      col->data = mmap(NULL, GIGABYTES(1), PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+    }
+  }
+}
+
 tickdb_table tickdb_table_init(tickdb_schema* schema) {
   tickdb_schema schema_copy;
   memcpy(&schema_copy, schema, sizeof(tickdb_schema));
@@ -71,25 +83,15 @@ tickdb_table tickdb_table_init(tickdb_schema* schema) {
     .symbols = _vec_init(sizeof(string) * DEFAULT_SYM_CAPACITY),
     .symbol_uids = _hm_init(sizeof(string), sym_size),
   };
+  open_columns(&res);
 
   return res;
 }
 
-static void open_columns(tickdb_table* table) {
-  char col_path[PATH_MAX];
-
-  for (int i = 0; i < table->schema.column_count; i++) {
-    tickdb_column* col = &table->schema.columns[i];
-    if (col->data == NULL) {
-      int fd = open(col_path, O_RDWR);
-      col->data = mmap(NULL, GIGABYTES(1), PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
-    }
-  }
-}
-
 void tickdb_table_close(tickdb_table* table) {
-  for (int i = 0; i < table->schema.column_count; i++) {
-    tickdb_column* col = &table->schema.columns[i];
+  tickdb_column* cols = (tickdb_column*) table->schema.columns.data;
+  for (int i = 0; i < table->schema.columns.size; i++) {
+    tickdb_column* col = cols + i;
     if (col->data != NULL)
       munmap(col->data, col->capacity * column_size(col->type));
   }
@@ -100,8 +102,9 @@ void tickdb_table_close(tickdb_table* table) {
 }
 
 static void table_write_data(tickdb_table* table, void* data, size_t size) {
-  tickdb_column* col = &table->schema.columns[table->column_index];
-  memcpy((char*)(col->data) + col->length, data, size);
+  tickdb_column* cols = (tickdb_column*) table->schema.columns.data;
+  tickdb_column* col = cols + table->column_index;
+  memcpy(col->data + col->length, data, size);
   col->length += size;
   table->column_index += 1;
 }
@@ -124,7 +127,6 @@ static inline tickdb_block* get_block(tickdb_table* table, int64_t symbol, int64
   tickdb_block new_block = {
     .symbol = symbol,
     .ts_min = epoch_nanos,
-    .n_bytes = 0,
   };
   return vec_push(blocks, new_block);
 }

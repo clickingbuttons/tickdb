@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hashmap.h"
+#include "string.h"
 #include "vec.h"
 
 #include <stddef.h>
@@ -8,7 +9,6 @@
 #include <stdint.h>
 
 #define TICKDB_MAX_COLUMNS 1024
-#define TICKDB_MAX_COL_NAME 256
 
 typedef enum tickdb_column_type {
   TICKDB_TIMESTAMP,
@@ -30,25 +30,23 @@ typedef enum tickdb_column_type {
 } tickdb_column_type;
 
 typedef struct tickdb_column {
-  char name[TICKDB_MAX_COL_NAME];
+  string name;
   tickdb_column_type type; 
 
   // Internal
-  void* data;
+  char* data;
   size_t capacity;
   size_t length;
 } tickdb_column;
 
 typedef struct tickdb_schema {
-  char name[TICKDB_MAX_COL_NAME];
-  char ts_name[TICKDB_MAX_COL_NAME];
-  char partition_fmt[TICKDB_MAX_COL_NAME];
-  char sym_name[TICKDB_MAX_COL_NAME];
+  string name;
+  string ts_name;
+  string partition_fmt; // strftime format
+  string sym_name;
   tickdb_column_type sym_type;
-  char sym_universe[TICKDB_MAX_COL_NAME];
-  tickdb_column columns[TICKDB_MAX_COLUMNS];
-  size_t column_count;
-  size_t column_index;
+  string sym_universe;
+  vec columns; // vec<tickdb_column>
   size_t ts_size;
   size_t block_size;
 } tickdb_schema;
@@ -59,7 +57,7 @@ void tickdb_schema_add(tickdb_schema* schema, char* column_name, tickdb_column_t
 typedef struct tickdb_block {
   int64_t symbol;
   int64_t ts_min;
-  size_t n_bytes;
+  size_t n_rows;
   size_t offset;
 } tickdb_block;
 

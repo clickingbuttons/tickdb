@@ -26,7 +26,6 @@ static hashmap _hm_init(size_t key_size, size_t val_size) {
     .key_size = key_size,
     .val_size = val_size,
     .capacity = HASHMAP_DEFAULT_CAPACITY,
-    .nmemb = 0,
     .data = (char*)calloc(HASHMAP_DEFAULT_CAPACITY + 1, key_size + val_size),
   };
   res.empty_key = res.data + HASHMAP_DEFAULT_CAPACITY;

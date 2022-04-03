@@ -18,7 +18,6 @@ static vec _vec_init(size_t size) {
   vec res = {
     .size = size,
     .capacity = VEC_DEFAULT_CAPACITY,
-    .nmemb = 0,
     .data = (char*)malloc(VEC_DEFAULT_CAPACITY * size),
   };
   return res;

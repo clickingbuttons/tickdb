@@ -26,3 +26,8 @@ clean:
 .PHONY: examples
 examples: $(BUILD_DIR)/$(LIBSO)
 	make -C examples
+
+.PHONY: test
+test: examples
+	./build/examples/trades
+
