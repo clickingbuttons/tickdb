@@ -31,7 +31,7 @@ void generate_trade(trade* trade) {
 }
 
 int main(void) {
-  tickdb_schema s = tickdb_schema_init("trades", "%Y-%m-%d", TICKDB_SYMBOL16, "us_equities");
+  tickdb_schema s = tickdb_schema_init("trades", "%Y/%m/%d", TICKDB_SYMBOL16, "us_equities");
   tickdb_schema_add(&s, "ts_participant", TICKDB_TIMESTAMP);
   tickdb_schema_add(&s, "id", TICKDB_UINT64);
   tickdb_schema_add(&s, "seq_id", TICKDB_UINT64);

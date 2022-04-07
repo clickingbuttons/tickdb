@@ -64,6 +64,7 @@ typedef struct tickdb_block {
 typedef struct tickdb_table {
   tickdb_schema schema;
   size_t column_index;
+  size_t largest_col;
   hashmap blocks; // symbol (int): vec<tickdb_block>
   vec symbols; // vec<str>
   hashmap symbol_uids; // symbol (char*): int
