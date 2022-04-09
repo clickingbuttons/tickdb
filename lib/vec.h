@@ -9,22 +9,22 @@ typedef struct vec {
   size_t stride;
   size_t capacity;
   size_t size;
-  char *data;
+  char* data;
 } vec;
 
 #define vec_init(type) _vec_init(sizeof(type))
 
 static vec _vec_init(size_t stride) {
   vec res = {
-      .stride = stride,
-      .capacity = VEC_DEFAULT_CAPACITY,
-      .data = (char *)malloc(VEC_DEFAULT_CAPACITY * stride),
+   .stride = stride,
+   .capacity = VEC_DEFAULT_CAPACITY,
+   .data = (char*)malloc(VEC_DEFAULT_CAPACITY * stride),
   };
   return res;
 }
 
-static void vec_resize(vec *v, size_t nmemb) {
-  v->data = (char *)realloc(v->data, nmemb * v->stride);
+static void vec_resize(vec* v, size_t nmemb) {
+  v->data = (char*)realloc(v->data, nmemb * v->stride);
   v->capacity = nmemb;
 }
 
@@ -34,19 +34,19 @@ static void vec_resize(vec *v, size_t nmemb) {
     _vec_push(v, &copy);                                                       \
   })
 
-static void *_vec_push(vec *v, void *value_ptr) {
+static void* _vec_push(vec* v, void* value_ptr) {
   if (v->size + 1 > v->capacity) {
     vec_resize(v, v->capacity * 2);
   }
 
-  void *dest = v->data + (v->size * v->stride);
+  void* dest = v->data + (v->size * v->stride);
   memcpy(dest, value_ptr, v->stride);
   v->size += 1;
 
   return dest;
 }
 
-static void vec_free(vec *v) {
+static void vec_free(vec* v) {
   free(v->data);
   v->data = NULL;
 }

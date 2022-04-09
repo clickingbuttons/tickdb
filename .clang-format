@@ -1,0 +1,4 @@
+DerivePointerAlignment: false
+PointerAlignment: Left
+AllowAllArgumentsOnNextLine: true
+ContinuationIndentWidth: 1

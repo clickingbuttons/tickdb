@@ -1,5 +1,5 @@
-#include "../lib/tickdb.h"
 #include "../lib/inttypes.h"
+#include "../lib/tickdb.h"
 
 #include <stdlib.h>
 
@@ -33,19 +33,20 @@ void generate_trade(trade* trade) {
 }
 
 int main(void) {
-  tickdb_schema s = tickdb_schema_init("trades", "%Y/%m/%d", TICKDB_SYMBOL16, "us_equities");
-  tickdb_schema_add(&s, "ts_participant", TICKDB_TIMESTAMP);
-  tickdb_schema_add(&s, "id", TICKDB_UINT64);
-  tickdb_schema_add(&s, "seq_id", TICKDB_UINT64);
-  tickdb_schema_add(&s, "size", TICKDB_UINT32);
-  tickdb_schema_add(&s, "price", TICKDB_CURRENCY);
-  tickdb_schema_add(&s, "cond", TICKDB_UINT32);
-  tickdb_schema_add(&s, "err", TICKDB_UINT8);
-  tickdb_schema_add(&s, "exchange", TICKDB_UINT8);
-  tickdb_schema_add(&s, "tape", TICKDB_UINT8);
+  tdb_schema s =
+   tdb_schema_init("trades", "%Y/%m/%d", TDB_SYMBOL16, "us_equities");
+  tdb_schema_add(&s, TDB_TIMESTAMP, "ts_participant");
+  tdb_schema_add(&s, TDB_UINT64,    "id");
+  tdb_schema_add(&s, TDB_UINT64,    "seq_id");
+  tdb_schema_add(&s, TDB_UINT32,    "size");
+  tdb_schema_add(&s, TDB_CURRENCY,  "price");
+  tdb_schema_add(&s, TDB_UINT32,    "cond");
+  tdb_schema_add(&s, TDB_UINT8,     "err");
+  tdb_schema_add(&s, TDB_UINT8,     "exchange");
+  tdb_schema_add(&s, TDB_UINT8,     "tape");
 
-  tickdb_table trades = tickdb_table_init(&s);
-  
+  tdb_table trades = tdb_table_init(&s);
+
   int num_trades = 10000000;
   trade t;
   for (int i = 0; i < num_trades; i++) {
@@ -53,18 +54,17 @@ int main(void) {
       printf("%d %s\n", i, t.sym);
     }
     generate_trade(&t);
-    tickdb_table_write(&trades, t.sym, t.ts);
-    tickdb_table_write_i64(&trades, t.ts_participant);
-    tickdb_table_write_u64(&trades, t.id);
-    tickdb_table_write_u64(&trades, t.seq_id);
-    tickdb_table_write_u32(&trades, t.size);
-    tickdb_table_write_f64(&trades, t.price);
-    tickdb_table_write_u32(&trades, t.conditions);
-    tickdb_table_write_u8(&trades, t.error);
-    tickdb_table_write_u8(&trades, t.exchange);
-    tickdb_table_write_u8(&trades, t.tape);
+    tdb_table_write(&trades, t.sym, t.ts);
+    tdb_table_write_i64(&trades, t.ts_participant);
+    tdb_table_write_u64(&trades, t.id);
+    tdb_table_write_u64(&trades, t.seq_id);
+    tdb_table_write_u32(&trades, t.size);
+    tdb_table_write_f64(&trades, t.price);
+    tdb_table_write_u32(&trades, t.conditions);
+    tdb_table_write_u8(&trades, t.error);
+    tdb_table_write_u8(&trades, t.exchange);
+    tdb_table_write_u8(&trades, t.tape);
   }
 
   return 0;
 }
-
