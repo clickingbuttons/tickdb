@@ -4,7 +4,11 @@
 #include "vec.h"
 
 typedef enum tickdb_coltype {
-  TDB_TIMESTAMP,
+  TDB_TIMESTAMP, // User gives us this so we can figure it out ourselves
+  TDB_TIMESTAMP8,
+  TDB_TIMESTAMP16,
+  TDB_TIMESTAMP32,
+  TDB_TIMESTAMP64,
   TDB_SYMBOL8,
   TDB_SYMBOL16,
   TDB_SYMBOL32,
@@ -35,7 +39,6 @@ typedef struct tdb_col {
 typedef struct tdb_schema {
   string name;
   string ts_name;
-  size_t ts_stride;
   string partition_fmt; // strftime format
   string sym_name;
   tdb_coltype sym_type;
@@ -44,7 +47,7 @@ typedef struct tdb_schema {
   size_t block_size;
 } tdb_schema;
 
-tdb_schema tdb_schema_init(char* name, char* ts_partition_fmt,
+tdb_schema tdb_schema_init(char* name, char* partition_fmt,
                            tdb_coltype sym_type, char* sym_universe);
 void tdb_schema_add(tdb_schema* schema, tdb_coltype type, char* column_name);
 void tdb_schema_free(tdb_schema* s);

@@ -7,7 +7,7 @@
 tdb_table tdb_table_init(tdb_schema* s) {
   tdb_schema schema_copy;
   memcpy(&schema_copy, s, sizeof(tdb_schema));
-  size_t sym_size = column_size(s->sym_type);
+  size_t sym_size = column_stride(s, s->sym_type);
 
   tdb_table res = {
    .schema = schema_copy,
@@ -23,6 +23,7 @@ tdb_table tdb_table_init(tdb_schema* s) {
 
 void tdb_table_close(tdb_table* t) {
   close_columns(t);
+	tdb_schema_free(&t->schema);
 
   hm_free(&t->blocks);
   vec_free(&t->symbols);
@@ -79,6 +80,7 @@ void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
     close_columns(t);
   }
 
-  // TODO: efficiently support lower resolutions than nanos
-  tdb_table_write_data(t, &epoch_nanos, t->schema.ts_stride);
+	tdb_col* cols = (tdb_col*) t->schema.columns.data;
+	size_t ts_stride = column_stride(&t->schema, cols->type);
+  tdb_table_write_data(t, &epoch_nanos, ts_stride);
 }

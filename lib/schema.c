@@ -1,21 +1,27 @@
 #include "schema.h"
 
-tdb_schema tdb_schema_init(char* name, char* ts_partition_fmt,
+tdb_schema tdb_schema_init(char* name, char* partition_fmt,
                            tdb_coltype sym_type, char* sym_universe) {
   tdb_schema res = {
    .name = string_init(name),
    .sym_name = string_init("sym"),
    .ts_name = string_init("ts"),
-   .ts_stride = 8, // TODO: optimize lower resolutions
-   .partition_fmt = string_init(ts_partition_fmt),
+   .partition_fmt = string_init(partition_fmt),
    .sym_universe = string_init(sym_universe),
    .columns = vec_init(tdb_col),
    .sym_type = sym_type,
   };
 
+  // TODO: support "resolution" which downscales "epoch_nanos"
+	// >>> math.log2(24*60) Minutes
+  // 10.491853096329674
+  // >>> math.log2(24*60*60) Seconds
+  // 16.398743691938193
+  // >>> math.log2(24*60*60*10000) .1ms
+  // 29.686456071487644
   tdb_col ts = {
    .name = string_init("ts"),
-   .type = TDB_TIMESTAMP,
+   .type = TDB_TIMESTAMP64,
   };
   vec_push(&res.columns, ts);
 

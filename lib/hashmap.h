@@ -57,7 +57,7 @@ static void* _hm_put(hashmap* hm, void* key, void* val) {
   uint64_t index = wyhash(key, hm->key_size) & (hm->capacity - 1);
 
   if (memcmp(hm->empty_key, key, hm->key_size) == 0) {
-    fprintf(stderr, "%s\n", "cannot write 0 key");
+    fprintf(stderr, "cannot write 0 key\n");
     exit(1);
   }
 

@@ -17,49 +17,56 @@ static struct tm nanos_to_tm(i64 nanos) {
   return res;
 }
 
-static size_t column_size(tdb_coltype type) {
+static size_t column_stride(tdb_schema* s, tdb_coltype type) {
   switch (type) {
   case TDB_SYMBOL8:
   case TDB_INT8:
   case TDB_UINT8:
+  case TDB_TIMESTAMP8:
     return 1;
   case TDB_SYMBOL16:
   case TDB_INT16:
   case TDB_UINT16:
+  case TDB_TIMESTAMP16:
     return 2;
   case TDB_SYMBOL32:
   case TDB_INT32:
   case TDB_UINT32:
   case TDB_FLOAT:
+  case TDB_TIMESTAMP32:
     return 4;
   case TDB_SYMBOL64:
   case TDB_CURRENCY:
   case TDB_INT64:
   case TDB_UINT64:
   case TDB_DOUBLE:
+  case TDB_TIMESTAMP64:
     return 8;
   case TDB_TIMESTAMP:
-    return -1;
+    return 0;
   }
 }
 
-static const char* column_ext(tdb_coltype type) {
+static const char* column_ext(tdb_table* t, tdb_coltype type) {
   switch (type) {
   case TDB_SYMBOL8:
     return "s8";
   case TDB_INT8:
+  case TDB_TIMESTAMP8:
     return "i8";
   case TDB_UINT8:
     return "u8";
   case TDB_SYMBOL16:
     return "s16";
   case TDB_INT16:
+  case TDB_TIMESTAMP16:
     return "i16";
   case TDB_UINT16:
     return "u16";
   case TDB_SYMBOL32:
     return "s32";
   case TDB_INT32:
+  case TDB_TIMESTAMP32:
     return "i32";
   case TDB_UINT32:
     return "u32";
@@ -70,14 +77,17 @@ static const char* column_ext(tdb_coltype type) {
   case TDB_CURRENCY:
     return "c64";
   case TDB_INT64:
+  case TDB_TIMESTAMP64:
     return "i64";
   case TDB_UINT64:
     return "u64";
   case TDB_DOUBLE:
     return "f64";
   case TDB_TIMESTAMP:
-    // TODO: right size based on table
-    return "ts";
+    fprintf(stderr,
+            "cannot know size of TDB_TIMESTAMP. must specify TDB_TIMESTAMP64, "
+            "TDB_TIMESTAMP32, TDB_TIMESTAMP16, or TDB_TIMESTAMP8\n");
+    exit(1);
   }
 }
 
@@ -87,7 +97,7 @@ static size_t get_largest_col_size(tdb_schema* s) {
   for (int i = 0; i < s->columns.size; i++) {
     tdb_col* col = columns + i;
 
-    size_t size = column_size(col->type);
+    size_t size = column_stride(s, col->type);
     if (size > res) {
       res = size;
     }
@@ -245,7 +255,7 @@ static void open_column(tdb_table* t, size_t col_num) {
   string_catc(&col_path, "/");
   string_cat(&col_path, &col->name);
   string_catc(&col_path, ".");
-  string_catc(&col_path, column_ext(col->type));
+  string_catc(&col_path, column_ext(t, col->type));
 
   printf("open col %s\n", sdata(col_path));
   if (string_size(&col_path) > PATH_MAX) {
@@ -297,7 +307,7 @@ static void close_columns(tdb_table* t) {
   for (int i = 0; i < t->schema.columns.size; i++) {
     tdb_col* col = cols + i;
     if (col->data != NULL)
-      munmap(col->data, col->capacity * column_size(col->type));
+      munmap(col->data, col->capacity * column_stride(&t->schema, col->type));
     string_free(&col->name);
   }
 }
