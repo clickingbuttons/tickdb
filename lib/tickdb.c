@@ -52,7 +52,7 @@ size_t tdb_table_stoi(tdb_table* t, char* symbol) {
 
 char* tdb_table_itos(tdb_table* t, i64 symbol) {
   string* symbols = (string*)t->symbols.data;
-  return string_data(&symbols[symbol - 1]);
+  return sdata(symbols[symbol - 1]);
 }
 
 void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
@@ -63,7 +63,7 @@ void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
     // ts's for partition
     struct tm time = nanos_to_tm(epoch_nanos);
     size_t written = strftime(t->partition.name, TDB_MAX_PARTITIONFMT_LEN,
-                              string_data(&t->schema.partition_fmt), &time);
+                              sdata(t->schema.partition_fmt), &time);
     if (written == 0) {
       fprintf(stderr, "partition_fmt longer than %d\n",
               TDB_MAX_PARTITIONFMT_LEN);

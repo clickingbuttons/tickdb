@@ -49,7 +49,6 @@ static string string_initn(char* s, size_t size) {
     memcpy(res._data, s, size);
     res.space_left = 15 - size;
   }
-  // printf("test %p %s\n", res._data, res._data);
 
   return res;
 }
@@ -64,6 +63,9 @@ static void string_free(string* s) {
 static char* string_data(const string* s) {
   return s->is_pointer ? s->ptr : (char*)s->_data;
 }
+
+// Because typing "&" is annoying
+#define sdata(s) string_data(&s)
 
 static size_t string_size(const string* s) {
   return s->is_pointer ? s->_size : 15 - s->space_left;

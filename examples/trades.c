@@ -50,10 +50,10 @@ int main(void) {
   int num_trades = 10000000;
   trade t;
   for (int i = 0; i < num_trades; i++) {
+    generate_trade(&t);
     if (i % 1000000 == 0) {
       printf("%d %s\n", i, t.sym);
     }
-    generate_trade(&t);
     tdb_table_write(&trades, t.sym, t.ts);
     tdb_table_write_i64(&trades, t.ts_participant);
     tdb_table_write_u64(&trades, t.id);

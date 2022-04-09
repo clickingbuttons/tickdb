@@ -114,7 +114,6 @@ static void* _hm_get(hashmap* hm, void* key) {
   for (uint64_t i = 1; memcmp(offset, key, hm->key_size) != 0; i++) {
     index += i * i;
     index = index & (hm->capacity - 1);
-    // printf("index %lu\n", index);
     offset = hm_get_key(hm, index);
     if (memcmp(offset, hm->empty_key, hm->key_size) == 0) {
       return NULL;

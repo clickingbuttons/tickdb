@@ -173,8 +173,8 @@ static char* year_fmts[] = {
  "%Y", // Year	2001
 };
 
-static i64 min_format_specifier(string* partition_fmt) {
-  char* haystack = string_data(partition_fmt);
+static i64 min_format_specifier(string partition_fmt) {
+  char* haystack = sdata(partition_fmt);
   for (int i = 0; i < sizeof(second_fmts) / sizeof(second_fmts[0]); i++) {
     if (strstr(haystack, second_fmts[i]) != NULL) {
       return NANOS_IN_SEC;
@@ -226,13 +226,13 @@ static i64 min_format_specifier(string* partition_fmt) {
 
 static i64 min_partition_ts(tdb_table* t, i64 epoch_nanos) {
   // TODO: month and leap year maths
-  i64 increment = min_format_specifier(&t->schema.partition_fmt);
+  i64 increment = min_format_specifier(t->schema.partition_fmt);
   return epoch_nanos - epoch_nanos % increment;
 }
 
 static i64 max_partition_ts(tdb_table* t, i64 epoch_nanos) {
   // TODO: month and leap year maths
-  i64 increment = min_format_specifier(&t->schema.partition_fmt);
+  i64 increment = min_format_specifier(t->schema.partition_fmt);
   return (epoch_nanos / increment + 1) * increment;
 }
 
@@ -247,20 +247,20 @@ static void open_column(tdb_table* t, size_t col_num) {
   string_catc(&col_path, ".");
   string_catc(&col_path, column_ext(col->type));
 
-  printf("open col %s\n", string_data(&col_path));
+  printf("open col %s\n", sdata(col_path));
   if (string_size(&col_path) > PATH_MAX) {
     fprintf(stderr, "Column file %s is longer than PATH_MAX of %d\n",
-            string_data(&col_path), PATH_MAX);
+            sdata(col_path), PATH_MAX);
   }
 
   string builder = string_init("");
   int last_dir = 0;
   for (int i = 0; i < string_size(&col_path); i++) {
-    if (string_data(&col_path)[i] == '/') {
-      string_catn(&builder, string_data(&col_path) + last_dir, i - last_dir);
-      if (mkdir(string_data(&builder), S_IRWXU | S_IRWXG | S_IRWXO)) {
+    if (sdata(col_path)[i] == '/') {
+      string_catn(&builder, sdata(col_path) + last_dir, i - last_dir);
+      if (mkdir(sdata(builder), S_IRWXU | S_IRWXG | S_IRWXO)) {
         if (errno != EEXIST) {
-          perror(string_data(&builder));
+          perror(sdata(builder));
           exit(1);
         }
       }
@@ -269,16 +269,16 @@ static void open_column(tdb_table* t, size_t col_num) {
   }
   string_free(&builder);
 
-  int fd = open(string_data(&col_path), O_RDWR);
+  int fd = open(sdata(col_path), O_RDWR);
   if (fd == -1 && errno == ENOENT) {
-    fd = open(string_data(&col_path), O_CREAT | O_RDWR, S_IRWXU);
+    fd = open(sdata(col_path), O_CREAT | O_RDWR, S_IRWXU);
     if (ftruncate(fd, GIGABYTES(1)) != 0) {
-      perror(string_data(&col_path));
+      perror(sdata(col_path));
       exit(1);
     }
   }
   if (fd == -1) {
-    perror(string_data(&col_path));
+    perror(sdata(col_path));
     exit(1);
   }
 
@@ -286,7 +286,7 @@ static void open_column(tdb_table* t, size_t col_num) {
    mmap(NULL, GIGABYTES(1), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   if (col->data == MAP_FAILED) {
     string_catc(&col_path, " mmap");
-    perror(string_data(&col_path));
+    perror(sdata(col_path));
     exit(1);
   }
   string_free(&col_path);
