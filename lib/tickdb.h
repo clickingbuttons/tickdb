@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #define TICKDB_MAX_COLUMNS 1024
+#define TICKDB_MAX_PARTITIONFMT_LEN 64
 
 typedef enum tickdb_column_type {
   TICKDB_TIMESTAMP,
@@ -36,18 +37,18 @@ typedef struct tickdb_column {
   // Internal
   char* data;
   size_t capacity;
-  size_t length;
+  size_t size;
 } tickdb_column;
 
 typedef struct tickdb_schema {
   string name;
   string ts_name;
+  size_t ts_stride;
   string partition_fmt; // strftime format
   string sym_name;
   tickdb_column_type sym_type;
   string sym_universe;
   vec columns; // vec<tickdb_column>
-  size_t ts_size;
   size_t block_size;
 } tickdb_schema;
 
@@ -61,9 +62,16 @@ typedef struct tickdb_block {
   size_t offset;
 } tickdb_block;
 
+typedef struct tickdb_partition {
+  int64_t ts_min;
+  int64_t ts_max;
+  char name[TICKDB_MAX_PARTITIONFMT_LEN];
+} tickdb_partition;
+
 typedef struct tickdb_table {
   tickdb_schema schema;
-  size_t column_index;
+  size_t cur_col_index;
+  tickdb_partition cur_partition;
   size_t largest_col;
   hashmap blocks; // symbol (int): vec<tickdb_block>
   vec symbols; // vec<str>

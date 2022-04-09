@@ -21,6 +21,15 @@ typedef struct hashmap {
 
 #define hm_init(key_type, val_type) _hm_init(sizeof(key_type), sizeof(val_type))
 
+
+static inline char* hm_get_key_at(hashmap* hm, char* start, size_t index) {
+  return start + index * (hm->key_size + hm->val_size);
+}
+
+static inline char* hm_get_key(hashmap* hm, size_t index) {
+  return hm_get_key_at(hm, hm->data, index);
+}
+
 static hashmap _hm_init(size_t key_size, size_t val_size) {
   hashmap res = {
     .key_size = key_size,
@@ -28,7 +37,7 @@ static hashmap _hm_init(size_t key_size, size_t val_size) {
     .capacity = HASHMAP_DEFAULT_CAPACITY,
     .data = (char*)calloc(HASHMAP_DEFAULT_CAPACITY + 1, key_size + val_size),
   };
-  res.empty_key = res.data + HASHMAP_DEFAULT_CAPACITY;
+  res.empty_key = hm_get_key(&res, res.capacity);
   return res;
 }
 
@@ -39,14 +48,6 @@ static void hm_grow(hashmap* hm);
   typeof(val) val_copy = val;  \
   _hm_put(hm, &key_copy, &val_copy);     \
 })
-
-static inline char* hm_get_key_at(hashmap* hm, char* start, size_t index) {
-  return start + index * (hm->key_size + hm->val_size);
-}
-
-static inline char* hm_get_key(hashmap* hm, size_t index) {
-  return hm_get_key_at(hm, hm->data, index);
-}
 
 static inline char* hm_get_val(hashmap* hm, size_t index) {
   return hm_get_key(hm, index) + hm->key_size;
@@ -87,7 +88,7 @@ static void hm_grow(hashmap* hm) {
   char* old_data = hm->data;
   hm->capacity *= 2;
   hm->data = (char*)calloc(hm->capacity + 1, hm->key_size + hm->val_size);
-  hm->empty_key = hm->data + hm->capacity;
+  hm->empty_key = hm_get_key(hm, hm->capacity);
   for (int i = 0; i < old_capacity; i++) {
     char* key = hm_get_key_at(hm, old_data, i);
     if (memcmp(key, hm->empty_key, hm->key_size) == 0) {
@@ -109,9 +110,10 @@ static void* _hm_get(hashmap* hm, void* key) {
   if (memcmp(offset, hm->empty_key, hm->key_size) == 0) {
     return NULL;
   }
-  for (int i = 1; memcmp(offset, key, hm->key_size) != 0; i++) {
+  for (uint64_t i = 1; memcmp(offset, key, hm->key_size) != 0; i++) {
     index += i * i;
     index = index & (hm->capacity - 1);
+    //printf("index %lu\n", index);
     offset = hm_get_key(hm, index);
     if (memcmp(offset, hm->empty_key, hm->key_size) == 0) {
       return NULL;

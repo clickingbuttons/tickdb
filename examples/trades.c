@@ -22,6 +22,8 @@ int64_t ts = 0;
 
 void generate_trade(trade* trade) {
   trade->ts = ts++;
+  // 26**3 = 17576
+  // log2(26**3) = 14.101319154423276
   trade->sym[0] = 'A' + (rand() % 26);
   trade->sym[1] = 'A' + (rand() % 26);
   trade->sym[2] = 'A' + (rand() % 26);
@@ -44,9 +46,12 @@ int main(void) {
 
   tickdb_table trades = tickdb_table_init(&s);
   
-  int num_trades = 1000000000;
+  int num_trades = 10000000;
   trade t;
   for (int i = 0; i < num_trades; i++) {
+    if (i % 1000000 == 0) {
+      printf("%d %s\n", i, t.sym);
+    }
     generate_trade(&t);
     tickdb_table_write(&trades, t.sym, t.ts);
     tickdb_table_write_int64(&trades, t.ts_participant);
