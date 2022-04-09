@@ -13,4 +13,3 @@ _Static_assert(sizeof(bool) == 1, "Expected bool to be 1 bytes.");
 #define GIGABYTES(amount) amount * 1000 * 1000 * 1000
 #define MEGABYTES(amount) amount * 1000 * 1000
 #define KILOBYTES(amount) amount * 1000
-

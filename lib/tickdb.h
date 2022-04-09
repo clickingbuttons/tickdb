@@ -4,8 +4,8 @@
 #include "string.h"
 #include "vec.h"
 
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define TICKDB_MAX_COLUMNS 1024
@@ -32,10 +32,10 @@ typedef enum tickdb_column_type {
 
 typedef struct tickdb_column {
   string name;
-  tickdb_column_type type; 
+  tickdb_column_type type;
 
   // Internal
-  char* data;
+  char *data;
   size_t capacity;
   size_t size;
 } tickdb_column;
@@ -52,8 +52,11 @@ typedef struct tickdb_schema {
   size_t block_size;
 } tickdb_schema;
 
-tickdb_schema tickdb_schema_init(char* name, char *ts_partition_fmt, tickdb_column_type sym_type, char* sym_universe);
-void tickdb_schema_add(tickdb_schema* schema, char* column_name, tickdb_column_type type);
+tickdb_schema tickdb_schema_init(char *name, char *ts_partition_fmt,
+                                 tickdb_column_type sym_type,
+                                 char *sym_universe);
+void tickdb_schema_add(tickdb_schema *schema, char *column_name,
+                       tickdb_column_type type);
 
 typedef struct tickdb_block {
   int64_t symbol;
@@ -73,21 +76,20 @@ typedef struct tickdb_table {
   size_t cur_col_index;
   tickdb_partition cur_partition;
   size_t largest_col;
-  hashmap blocks; // symbol (int): vec<tickdb_block>
-  vec symbols; // vec<str>
+  hashmap blocks;      // symbol (int): vec<tickdb_block>
+  vec symbols;         // vec<str>
   hashmap symbol_uids; // symbol (char*): int
 } tickdb_table;
 
-tickdb_table tickdb_table_init(tickdb_schema* schema);
-void tickdb_table_write(tickdb_table* table, char* symbol, int64_t epoch_nanos);
-void tickdb_table_write_int8(tickdb_table* table, int8_t value);
-void tickdb_table_write_int16(tickdb_table* table, int16_t value);
-void tickdb_table_write_int32(tickdb_table* table, int32_t value);
-void tickdb_table_write_int64(tickdb_table* table, int64_t value);
-void tickdb_table_write_uint8(tickdb_table* table, uint8_t value);
-void tickdb_table_write_uint16(tickdb_table* table, uint16_t value);
-void tickdb_table_write_uint32(tickdb_table* table, uint32_t value);
-void tickdb_table_write_uint64(tickdb_table* table, uint64_t value);
-void tickdb_table_write_float(tickdb_table* table, float value);
-void tickdb_table_write_double(tickdb_table* table, double value);
-
+tickdb_table tickdb_table_init(tickdb_schema *schema);
+void tickdb_table_write(tickdb_table *table, char *symbol, int64_t epoch_nanos);
+void tickdb_table_write_int8(tickdb_table *table, int8_t value);
+void tickdb_table_write_int16(tickdb_table *table, int16_t value);
+void tickdb_table_write_int32(tickdb_table *table, int32_t value);
+void tickdb_table_write_int64(tickdb_table *table, int64_t value);
+void tickdb_table_write_uint8(tickdb_table *table, uint8_t value);
+void tickdb_table_write_uint16(tickdb_table *table, uint16_t value);
+void tickdb_table_write_uint32(tickdb_table *table, uint32_t value);
+void tickdb_table_write_uint64(tickdb_table *table, uint64_t value);
+void tickdb_table_write_float(tickdb_table *table, float value);
+void tickdb_table_write_double(tickdb_table *table, double value);

@@ -54,15 +54,15 @@ int main(void) {
     }
     generate_trade(&t);
     tickdb_table_write(&trades, t.sym, t.ts);
-    tickdb_table_write_int64(&trades, t.ts_participant);
-    tickdb_table_write_uint64(&trades, t.id);
-    tickdb_table_write_uint64(&trades, t.seq_id);
-    tickdb_table_write_uint32(&trades, t.size);
-    tickdb_table_write_double(&trades, t.price);
-    tickdb_table_write_uint32(&trades, t.conditions);
-    tickdb_table_write_uint8(&trades, t.error);
-    tickdb_table_write_uint8(&trades, t.exchange);
-    tickdb_table_write_uint8(&trades, t.tape);
+    tickdb_table_write_i64(&trades, t.ts_participant);
+    tickdb_table_write_u64(&trades, t.id);
+    tickdb_table_write_u64(&trades, t.seq_id);
+    tickdb_table_write_u32(&trades, t.size);
+    tickdb_table_write_f64(&trades, t.price);
+    tickdb_table_write_u32(&trades, t.conditions);
+    tickdb_table_write_u8(&trades, t.error);
+    tickdb_table_write_u8(&trades, t.exchange);
+    tickdb_table_write_u8(&trades, t.tape);
   }
 
   return 0;

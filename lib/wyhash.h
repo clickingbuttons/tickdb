@@ -77,4 +77,3 @@ static inline uint64_t wyhash(const void *key, size_t len) {
   }
   return _wymix(secret[1] ^ len, _wymix(a ^ secret[1], b ^ see0));
 }
-
