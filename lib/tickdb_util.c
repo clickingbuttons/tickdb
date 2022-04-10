@@ -183,8 +183,42 @@ static char* year_fmts[] = {
  "%Y", // Year	2001
 };
 
-static i64 min_format_specifier(string partition_fmt) {
-  char* haystack = sdata(partition_fmt);
+static int days_in_month[] = {
+	31,
+	28,
+	31,
+	30,
+	31,
+	30,
+	31,
+	31,
+	30,
+	31,
+	30,
+	31,
+};
+
+static bool is_leap(int year) {
+	// leap year if perfectly divisible by 400
+	if (year % 400 == 0) {
+		return true;
+	}
+	// not a leap year if divisible by 100
+	// but not divisible by 400
+	else if (year % 100 == 0) {
+		return false;
+	}
+	// leap year if not divisible by 100
+	// but divisible by 4
+	else if (year % 4 == 0) {
+		return true;
+	}
+	// all other years are not leap years
+	return false;
+}
+
+static i64 min_format_specifier(string* partition_fmt, struct tm* time) {
+  char* haystack = string_data(partition_fmt);
   for (int i = 0; i < sizeof(second_fmts) / sizeof(second_fmts[0]); i++) {
     if (strstr(haystack, second_fmts[i]) != NULL) {
       return NANOS_IN_SEC;
@@ -215,7 +249,11 @@ static i64 min_format_specifier(string partition_fmt) {
 
   for (int i = 0; i < sizeof(month_fmts) / sizeof(month_fmts[0]); i++) {
     if (strstr(haystack, month_fmts[i]) != NULL) {
-      return 60 * 60 * 24 * 30 * NANOS_IN_SEC;
+			u64 days = days_in_month[time->tm_mon];
+			if (time->tm_mon == 1 && is_leap(time->tm_year)) {
+				days += 1;
+			}
+      return 60 * 60 * 24 * days * NANOS_IN_SEC;
     }
   }
 
@@ -224,10 +262,13 @@ static i64 min_format_specifier(string partition_fmt) {
   // %z	ISO 8601 offset from UTC in timezone (1 minute=1, 1 hour=100) If
   // timezone cannot be determined, no characters	+100 %Z	Timezone name or
   // abbreviation * If timezone cannot be determined, no characters	CDT
-
   for (int i = 0; i < sizeof(year_fmts) / sizeof(year_fmts[0]); i++) {
     if (strstr(haystack, year_fmts[i]) != NULL) {
-      return 60 * 60 * 24 * 365 * NANOS_IN_SEC;
+			u64 days = 365;
+			if (is_leap(time->tm_year)) {
+				days += 1;
+			}
+      return 60 * 60 * 24 * days * NANOS_IN_SEC;
     }
   }
 
@@ -235,14 +276,14 @@ static i64 min_format_specifier(string partition_fmt) {
 }
 
 static i64 min_partition_ts(tdb_table* t, i64 epoch_nanos) {
-  // TODO: month and leap year maths
-  i64 increment = min_format_specifier(t->schema.partition_fmt);
+	struct tm time = nanos_to_tm(epoch_nanos);
+  i64 increment = min_format_specifier(&t->schema.partition_fmt, &time);
   return epoch_nanos - epoch_nanos % increment;
 }
 
 static i64 max_partition_ts(tdb_table* t, i64 epoch_nanos) {
-  // TODO: month and leap year maths
-  i64 increment = min_format_specifier(t->schema.partition_fmt);
+	struct tm time = nanos_to_tm(epoch_nanos);
+  i64 increment = min_format_specifier(&t->schema.partition_fmt, &time);
   return (epoch_nanos / increment + 1) * increment;
 }
 

@@ -63,11 +63,11 @@ void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
     // Calling strftime for each row is bad perf, so instead compute min/max
     // ts's for partition
     struct tm time = nanos_to_tm(epoch_nanos);
-    size_t written = strftime(t->partition.name, TDB_MAX_PARTITIONFMT_LEN,
+    size_t written = strftime(t->partition.name, TDB_MAX_FMT_LEN,
                               sdata(t->schema.partition_fmt), &time);
     if (written == 0) {
       fprintf(stderr, "partition_fmt longer than %d\n",
-              TDB_MAX_PARTITIONFMT_LEN);
+              TDB_MAX_FMT_LEN);
       exit(EXIT_FAILURE);
     }
 

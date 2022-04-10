@@ -3,7 +3,7 @@
 #include "hashmap.h"
 #include "schema.h"
 
-#define TDB_MAX_PARTITIONFMT_LEN 64
+#define TDB_MAX_FMT_LEN 64
 
 typedef struct tdb_block {
   i64 symbol;
@@ -15,7 +15,7 @@ typedef struct tdb_block {
 typedef struct tdb_partition {
   i64 ts_min;
   i64 ts_max;
-  char name[TDB_MAX_PARTITIONFMT_LEN];
+  char name[TDB_MAX_FMT_LEN];
 } tdb_partition;
 
 typedef struct tdb_table {
@@ -29,10 +29,9 @@ typedef struct tdb_table {
 } tdb_table;
 
 tdb_table tdb_table_init(tdb_schema* s);
-void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos);
-void tdb_table_write_data(tdb_table* t, void* data,
-                          size_t size); // TODO: unexpose
 
+void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos);
+void tdb_table_write_data(tdb_table* t, void* data, size_t size);
 #define register_writer(ty)                                                    \
   static void tdb_table_write_##ty(tdb_table* table, ty value) {               \
     tdb_table_write_data(table, &value, sizeof(ty));                           \
