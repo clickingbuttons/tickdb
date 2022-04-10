@@ -8,7 +8,6 @@ tdb_schema tdb_schema_init(char* name, char* partition_fmt,
    .ts_name = string_init("ts"),
    .partition_fmt = string_init(partition_fmt),
    .sym_universe = string_init(sym_universe),
-   .columns = vec_init(tdb_col),
    .sym_type = sym_type,
   };
 
@@ -40,9 +39,8 @@ void tdb_schema_add(tdb_schema* s, tdb_coltype type, char* name) {
 void tdb_schema_free(tdb_schema* s) {
   string_free(&s->sym_name);
   string_free(&s->ts_name);
-  tdb_col* cols = (tdb_col*)s->columns.data;
-  for (int i = 0; i < s->columns.size; i++) {
-    tdb_col* col = cols + i;
+  for (int i = 0; i < s->columns.len; i++) {
+    tdb_col* col = s->columns.data + i;
     string_free(&col->name);
   }
 }

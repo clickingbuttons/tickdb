@@ -43,7 +43,10 @@ static size_t column_stride(tdb_schema* s, tdb_coltype type) {
   case TDB_TIMESTAMP64:
     return 8;
   case TDB_TIMESTAMP:
-    return 0;
+    fprintf(stderr,
+            "cannot know stride of TDB_TIMESTAMP. must specify TDB_TIMESTAMP64, "
+            "TDB_TIMESTAMP32, TDB_TIMESTAMP16, or TDB_TIMESTAMP8\n");
+    exit(1);
   }
 }
 
@@ -93,10 +96,8 @@ static const char* column_ext(tdb_table* t, tdb_coltype type) {
 
 static size_t get_largest_col_size(tdb_schema* s) {
   size_t res = 1;
-  tdb_col* columns = (tdb_col*)s->columns.data;
-  for (int i = 0; i < s->columns.size; i++) {
-    tdb_col* col = columns + i;
-
+  for (int i = 0; i < s->columns.len; i++) {
+    tdb_col* col = s->columns.data + i;
     size_t size = column_stride(s, col->type);
     if (size > res) {
       res = size;
@@ -106,18 +107,18 @@ static size_t get_largest_col_size(tdb_schema* s) {
   return res;
 }
 
+typedef vec_t(tdb_block) vec_tdb_block;
+
 static inline tdb_block* get_block(tdb_table* t, i64 symbol, i64 nanos) {
-  vec* blocks = _hm_get(&t->blocks, &symbol);
+  vec_tdb_block* blocks = _hm_get(&t->blocks, &symbol);
   if (blocks == NULL) {
-    vec new_blocks = vec_init(tdb_block);
-    blocks = (vec*)hm_put(&t->blocks, symbol, new_blocks);
+    vec_tdb_block new_blocks = { 0 };
+    blocks = hm_put(&t->blocks, symbol, new_blocks);
   }
 
-  tdb_block* data = (tdb_block*)blocks->data;
-  for (size_t i = 0; i < blocks->size; i++) {
-    tdb_block* b = data + i;
-    if (nanos >= b->ts_min &&
-        t->largest_col * b->n_rows < t->schema.block_size) {
+  for (size_t i = 0; i < blocks->len; i++) {
+    tdb_block* b = blocks->data + i;
+    if (nanos >= b->ts_min) {
       return b;
     }
   }
@@ -126,7 +127,9 @@ static inline tdb_block* get_block(tdb_table* t, i64 symbol, i64 nanos) {
    .symbol = symbol,
    .ts_min = nanos,
   };
-  return vec_push(blocks, new_block);
+  vec_push(blocks, new_block);
+
+	return blocks->data + blocks->len;
 }
 
 static char* second_fmts[] = {
@@ -344,9 +347,8 @@ static void open_column(tdb_table* t, size_t col_num) {
 }
 
 static void close_columns(tdb_table* t) {
-  tdb_col* cols = (tdb_col*)t->schema.columns.data;
-  for (int i = 0; i < t->schema.columns.size; i++) {
-    tdb_col* col = cols + i;
+  for (int i = 0; i < t->schema.columns.len; i++) {
+    tdb_col* col = t->schema.columns.data + i;
     if (col->data != NULL)
       munmap(col->data, col->capacity * column_stride(&t->schema, col->type));
     string_free(&col->name);

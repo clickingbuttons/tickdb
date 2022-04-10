@@ -36,6 +36,8 @@ typedef struct tdb_col {
   size_t size;
 } tdb_col;
 
+typedef vec_t(tdb_col) vec_tdb_col;
+
 typedef struct tdb_schema {
   string name;
   string ts_name;
@@ -43,7 +45,7 @@ typedef struct tdb_schema {
   string sym_name;
   tdb_coltype sym_type;
   string sym_universe;
-  vec columns; // vec<tickdb_column>
+  vec_tdb_col columns;
   size_t block_size;
 } tdb_schema;
 

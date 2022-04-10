@@ -1,52 +1,53 @@
 #pragma once
 
+#include "inttypes.h"
 #include <stdlib.h>
 #include <string.h>
 
 #define VEC_DEFAULT_CAPACITY 8
 
-typedef struct vec {
-  size_t stride;
-  size_t capacity;
-  size_t size;
-  char* data;
-} vec;
+#define vec_t(T)                                                               \
+  struct {                                                                     \
+    T* data;                                                                   \
+    size_t len;                                                                \
+    size_t cap;                                                                \
+  }
+typedef vec_t(i8) vec_i8;
+typedef vec_t(i16) vec_i16;
+typedef vec_t(i32) vec_i32;
+typedef vec_t(i64) vec_i64;
+typedef vec_t(u8) vec_u8;
+typedef vec_t(u16) vec_u16;
+typedef vec_t(u32) vec_u32;
+typedef vec_t(u64) vec_u64;
+typedef vec_t(f32) vec_f32;
+typedef vec_t(f64) vec_f64;
 
-#define vec_init(type) _vec_init(sizeof(type))
-
-static vec _vec_init(size_t stride) {
-  vec res = {
-   .stride = stride,
-   .capacity = VEC_DEFAULT_CAPACITY,
-   .data = (char*)malloc(VEC_DEFAULT_CAPACITY * stride),
-  };
-  return res;
-}
-
-static void vec_resize(vec* v, size_t nmemb) {
-  v->data = (char*)realloc(v->data, nmemb * v->stride);
-  v->capacity = nmemb;
-}
-
-#define vec_push(v, val)                                                       \
-  ({                                                                           \
-    typeof(val) copy = val;                                                    \
-    _vec_push(v, &copy);                                                       \
-  })
-
-static void* _vec_push(vec* v, void* value_ptr) {
-  if (v->size + 1 > v->capacity) {
-    vec_resize(v, v->capacity * 2);
+// vec_i64 new_blocks = { 0 };
+#define vec_resize(v, nmemb)                                                   \
+  {                                                                            \
+    (v)->data = realloc((v)->data, nmemb * sizeof(*(v)->data));                \
+    (v)->cap = nmemb;                                                          \
   }
 
-  void* dest = v->data + (v->size * v->stride);
-  memcpy(dest, value_ptr, v->stride);
-  v->size += 1;
+#define vec_push_ptr(v, ptr)                                                   \
+  {                                                                            \
+    if ((v)->len + 1 > (v)->cap) {                                             \
+      if ((v)->cap == 0) {                                                       \
+        vec_resize((v), VEC_DEFAULT_CAPACITY);                                 \
+			} else {                                                                     \
+        vec_resize((v), (v)->cap * 2);                                         \
+			} \
+    }                                                                          \
+    typeof((v)->data) dest = (v)->data + (v)->len;                             \
+    memcpy(dest, ptr, sizeof(*(v)->data));                                     \
+    (v)->len += 1;                                                             \
+  }
 
-  return dest;
-}
+#define vec_push(v, val) vec_push_ptr(v, &val);
 
-static void vec_free(vec* v) {
-  free(v->data);
-  v->data = NULL;
-}
+#define vec_free(v)                                                            \
+  {                                                                            \
+    free((v)->data);                                                           \
+    (v)->data = NULL;                                                          \
+  }

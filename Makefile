@@ -5,7 +5,7 @@ LIBSO := lib$(LIB).so
 BUILD_DIR ?= ./build
 SRC_DIR ?= ./lib
 LDFLAGS ?= -shared
-CFLAGS += -std=gnu11
+CFLAGS += -std=gnu11 -g -O3
 
 SRCS := $(wildcard lib/*.c)
 OBJS := $(SRCS:%=$(BUILD_DIR)/obj/%.o)
@@ -15,7 +15,7 @@ $(BUILD_DIR)/$(LIBSO): $(OBJS)
 
 $(BUILD_DIR)/obj/%.c.o: %.c
 	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -g -MMD -MP -c $< -o $@
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 .PHONY: clean
 clean:

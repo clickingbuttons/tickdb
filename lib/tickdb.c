@@ -14,7 +14,6 @@ tdb_table tdb_table_init(tdb_schema* s) {
    .largest_col = get_largest_col_size(s),
    .partition = {0},
    .blocks = hm_init(sym_size, tdb_block),
-   .symbols = vec_init(string),
    .symbol_uids = _hm_init(sizeof(string), sym_size),
   };
 
@@ -38,15 +37,15 @@ void tdb_table_write_data(tdb_table* t, void* data, size_t size) {
   }
   memcpy(col->data + col->size, data, size);
   col->size += size;
-  t->col_index = (t->col_index + 1) % t->schema.columns.size;
+  t->col_index = (t->col_index + 1) % t->schema.columns.len;
 }
 
 size_t tdb_table_stoi(tdb_table* t, char* symbol) {
   string s = string_init(symbol);
   size_t* sym = _hm_get(&t->symbol_uids, &s);
   if (sym == NULL) {
-    _vec_push(&t->symbols, &s);
-    sym = (size_t*)_hm_put(&t->symbol_uids, &s, &t->symbols.size);
+    vec_push_ptr(&t->symbols, &s);
+    sym = (size_t*)_hm_put(&t->symbol_uids, &s, &t->symbols.len);
   }
   return *sym;
 }

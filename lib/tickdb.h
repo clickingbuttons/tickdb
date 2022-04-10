@@ -18,14 +18,16 @@ typedef struct tdb_partition {
   char name[TDB_MAX_FMT_LEN];
 } tdb_partition;
 
+typedef vec_t(string) vec_string;
+
 typedef struct tdb_table {
   tdb_schema schema;
+  size_t largest_col;
   size_t col_index;
   tdb_partition partition;
-  size_t largest_col;
-  hashmap blocks;      // symbol (int): vec<tickdb_block>
-  vec symbols;         // vec<str>
-  hashmap symbol_uids; // symbol (char*): int
+  hashmap blocks;          // symbol (int): vec<tickdb_block>
+  vec_string symbols;
+  hashmap symbol_uids;     // symbol (char*): int
 } tdb_table;
 
 tdb_table tdb_table_init(tdb_schema* s);
