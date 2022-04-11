@@ -4,6 +4,7 @@
 #include "schema.h"
 
 #define TDB_MAX_FMT_LEN 64
+extern "C" {
 
 typedef struct tdb_block {
   i64 symbol;
@@ -49,3 +50,5 @@ register_writer(u64);
 register_writer(f32);
 register_writer(f64);
 #undef register_writer
+
+} // extern "C"

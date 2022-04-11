@@ -4,11 +4,11 @@ tdb_schema tdb_schema_init(char* name, char* partition_fmt,
                            tdb_coltype sym_type, char* sym_universe) {
   tdb_schema res = {
    .name = string_init(name),
-   .sym_name = string_init("sym"),
    .ts_name = string_init("ts"),
    .partition_fmt = string_init(partition_fmt),
-   .sym_universe = string_init(sym_universe),
+   .sym_name = string_init("sym"),
    .sym_type = sym_type,
+   .sym_universe = string_init(sym_universe),
   };
 
   // TODO: support "resolution" which downscales "epoch_nanos"

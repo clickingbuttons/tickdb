@@ -35,7 +35,7 @@ typedef union string {
 
 static inline int ilog2(int n) { return 32 - __builtin_clz(n) - 1; }
 
-static string string_initn(char* s, size_t size) {
+static string string_initn(const char* s, size_t size) {
   string res = {0};
 
   if (size > 15) {
@@ -53,7 +53,7 @@ static string string_initn(char* s, size_t size) {
   return res;
 }
 
-static string string_init(char* s) { return string_initn(s, strlen(s)); }
+static string string_init(const char* s) { return string_initn(s, strlen(s)); }
 
 static void string_free(string* s) {
   if (s->is_pointer)

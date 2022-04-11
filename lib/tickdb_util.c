@@ -110,10 +110,10 @@ static size_t get_largest_col_size(tdb_schema* s) {
 typedef vec_t(tdb_block) vec_tdb_block;
 
 static inline tdb_block* get_block(tdb_table* t, i64 symbol, i64 nanos) {
-  vec_tdb_block* blocks = _hm_get(&t->blocks, &symbol);
+  vec_tdb_block* blocks = (vec_tdb_block*)_hm_get(&t->blocks, &symbol);
   if (blocks == NULL) {
     vec_tdb_block new_blocks = { 0 };
-    blocks = hm_put(&t->blocks, symbol, new_blocks);
+    blocks = (vec_tdb_block*)hm_put(&t->blocks, symbol, new_blocks);
   }
 
   for (size_t i = 0; i < blocks->len; i++) {
@@ -132,25 +132,25 @@ static inline tdb_block* get_block(tdb_table* t, i64 symbol, i64 nanos) {
 	return blocks->data + blocks->len;
 }
 
-static char* second_fmts[] = {
+static const char* second_fmts[] = {
  "%S", // Second (00-61)	02
  "%X", // Time representation *	14:55:02
  "%T", // ISO 8601 time format (HH:MM:SS), equivalent to %H:%M:%S	14:55:02
  "%r", // 12-hour clock time *	02:55:02 pm
 };
 
-static char* minute_fmts[] = {
+static const char* minute_fmts[] = {
  "%M", // Minute (00-59)	55
  "%R", // 24-hour HH:MM time, equivalent to %H:%M	14:55
  "%c", // Date and time representation *	Thu Aug 23 14:55:02 2001
 };
 
-static char* hour_fmts[] = {
+static const char* hour_fmts[] = {
  "%H", // Hour in 24h format (00-23)	14
  "%I", // Hour in 12h format (01-12)	02
 };
 
-static char* day_fmts[] = {
+static const char* day_fmts[] = {
  "%j", // Day of the year (001-366)	235
  "%d", // Day of the month, zero-padded (01-31)	23
  "%e", // Day of the month, space-padded ( 1-31)	23
@@ -163,7 +163,7 @@ static char* day_fmts[] = {
  "%F", // Short YYYY-MM-DD date, equivalent to %Y-%m-%d	2001-08-23
 };
 
-static char* week_fmts[] = {
+static const char* week_fmts[] = {
  "%V", // ISO 8601 week number (01-53)	34
  "%U", // Week number with the first Sunday as the first day of week one
        // (00-53)	33
@@ -171,14 +171,14 @@ static char* week_fmts[] = {
        // (00-53)	34
 };
 
-static char* month_fmts[] = {
+static const char* month_fmts[] = {
  "%b", // Abbreviated month name *	Aug
  "%h", // Abbreviated month name * (same as %b)	Aug
  "%B", // Full month name *	August
  "%m", // Month as a decimal number (01-12)	08
 };
 
-static char* year_fmts[] = {
+static const char* year_fmts[] = {
  "%C", // Year divided by 100 and truncated to integer (00-99)	20
  "%g", // Week-based year, last two digits (00-99)	01
  "%G", // Week-based year	2001
@@ -186,7 +186,7 @@ static char* year_fmts[] = {
  "%Y", // Year	2001
 };
 
-static int days_in_month[] = {
+static const int days_in_month[] = {
 	31,
 	28,
 	31,
@@ -337,7 +337,7 @@ static void open_column(tdb_table* t, size_t col_num) {
   }
 
   col->data =
-   mmap(NULL, GIGABYTES(1), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+   (char*)mmap(NULL, GIGABYTES(1), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   if (col->data == MAP_FAILED) {
     string_catc(&col_path, " mmap");
     perror(sdata(col_path));
