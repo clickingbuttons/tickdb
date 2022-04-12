@@ -33,19 +33,19 @@ void generate_trade(trade* trade) {
 }
 
 int main(void) {
-  tdb_schema s =
+  tdb_schema* s =
    tdb_schema_init("trades", "%Y/%m/%d", TDB_SYMBOL16, "us_equities");
-  tdb_schema_add(&s, TDB_TIMESTAMP64, "ts_participant");
-  tdb_schema_add(&s, TDB_UINT64,      "id");
-  tdb_schema_add(&s, TDB_UINT64,      "seq_id");
-  tdb_schema_add(&s, TDB_UINT32,      "size");
-  tdb_schema_add(&s, TDB_CURRENCY,    "price");
-  tdb_schema_add(&s, TDB_UINT32,      "cond");
-  tdb_schema_add(&s, TDB_UINT8,       "err");
-  tdb_schema_add(&s, TDB_UINT8,       "exchange");
-  tdb_schema_add(&s, TDB_UINT8,       "tape");
+  tdb_schema_add(s, TDB_TIMESTAMP64, "ts_participant");
+  tdb_schema_add(s, TDB_UINT64,      "id");
+  tdb_schema_add(s, TDB_UINT64,      "seq_id");
+  tdb_schema_add(s, TDB_UINT32,      "size");
+  tdb_schema_add(s, TDB_CURRENCY,    "price");
+  tdb_schema_add(s, TDB_UINT32,      "cond");
+  tdb_schema_add(s, TDB_UINT8,       "err");
+  tdb_schema_add(s, TDB_UINT8,       "exchange");
+  tdb_schema_add(s, TDB_UINT8,       "tape");
 
-  tdb_table trades = tdb_table_init(&s);
+  tdb_table* trades = tdb_table_init(s);
 
   int num_trades = 10000000;
   trade t;
@@ -54,16 +54,16 @@ int main(void) {
     if (i % 1000000 == 0) {
       printf("%d %s\n", i, t.sym);
     }
-    tdb_table_write(&trades, t.sym, t.ts);
-    tdb_table_write_i64(&trades, t.ts_participant);
-    tdb_table_write_u64(&trades, t.id);
-    tdb_table_write_u64(&trades, t.seq_id);
-    tdb_table_write_u32(&trades, t.size);
-    tdb_table_write_f64(&trades, t.price);
-    tdb_table_write_u32(&trades, t.conditions);
-    tdb_table_write_u8(&trades, t.error);
-    tdb_table_write_u8(&trades, t.exchange);
-    tdb_table_write_u8(&trades, t.tape);
+    tdb_table_write(trades, t.sym, t.ts);
+    tdb_table_write_i64(trades, t.ts_participant);
+    tdb_table_write_u64(trades, t.id);
+    tdb_table_write_u64(trades, t.seq_id);
+    tdb_table_write_u32(trades, t.size);
+    tdb_table_write_f64(trades, t.price);
+    tdb_table_write_u32(trades, t.conditions);
+    tdb_table_write_u8(trades, t.error);
+    tdb_table_write_u8(trades, t.exchange);
+    tdb_table_write_u8(trades, t.tape);
   }
 
   return 0;

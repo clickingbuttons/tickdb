@@ -4,9 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Inspired by clang's sso_string
-// https://www.youtube.com/watch?v=kPR8h4-qZdk
-
 typedef union string {
   // allow strings up to 15 bytes to stay on the stack
   // use the last byte as a null terminator and to store flags

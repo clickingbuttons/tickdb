@@ -7,13 +7,13 @@ SRC_DIR ?= ./lib
 LDFLAGS ?= -shared
 CFLAGS += -std=gnu++11 -g -O3
 
-SRCS := $(wildcard lib/*.c)
+SRCS := $(wildcard lib/*.cc)
 OBJS := $(SRCS:%=$(BUILD_DIR)/obj/%.o)
 
 $(BUILD_DIR)/$(LIBSO): $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS)
 
-$(BUILD_DIR)/obj/%.c.o: %.c
+$(BUILD_DIR)/obj/%.cc.o: %.cc
 	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
