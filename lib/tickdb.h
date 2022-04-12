@@ -41,6 +41,8 @@ public:
   }
   i64 sym_id(const char* symbol);
   const char* sym_string(i64 symbol);
+	void write(const char* symbol, i64 epoch_nanos);
+	void write_data(void* data, size_t size);
 };
 #else
 typedef struct tdb_table tdb_table;
@@ -48,7 +50,7 @@ typedef struct tdb_table tdb_table;
 
 TDBAPI tdb_table* tdb_table_init(tdb_schema* s);
 
-TDBAPI void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos);
+TDBAPI void tdb_table_write(tdb_table* t, const char* symbol, i64 epoch_nanos);
 TDBAPI void tdb_table_write_data(tdb_table* t, void* data, size_t size);
 #define register_writer(ty)                                                    \
   static void tdb_table_write_##ty(tdb_table* table, ty value) {               \
