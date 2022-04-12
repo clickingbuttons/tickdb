@@ -1,6 +1,7 @@
 #include "../lib/inttypes.h"
 #include "../lib/tickdb.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 typedef struct trade {
@@ -51,9 +52,8 @@ int main(void) {
   trade t;
   for (int i = 0; i < num_trades; i++) {
     generate_trade(&t);
-    if (i % 1000000 == 0) {
+    if (i % 1000000 == 0)
       printf("%d %s\n", i, t.sym);
-    }
     tdb_table_write(trades, t.sym, t.ts);
     tdb_table_write_i64(trades, t.ts_participant);
     tdb_table_write_u64(trades, t.id);

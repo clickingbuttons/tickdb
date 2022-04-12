@@ -3,12 +3,12 @@
 tdb_schema* tdb_schema_init(char* name, char* partition_fmt,
                            tdb_coltype sym_type, char* sym_universe) {
   tdb_schema* res = new tdb_schema();
-  res->name = string_init(name);
-  res->ts_name = string_init("ts");
-  res->partition_fmt = string_init(partition_fmt);
-  res->sym_name = string_init("sym");
+  res->name = name;
+  res->ts_name = "ts";
+  res->partition_fmt = partition_fmt;
+  res->sym_name = "sym";
   res->sym_type = sym_type;
-  res->sym_universe = string_init(sym_universe);
+  res->sym_universe = sym_universe;
 
   // TODO: support "resolution" which downscales "epoch_nanos"
 	// >>> math.log2(24*60) Minutes
@@ -18,7 +18,7 @@ tdb_schema* tdb_schema_init(char* name, char* partition_fmt,
   // >>> math.log2(24*60*60*10000) .1ms
   // 29.686456071487644
   res->columns.push_back({
-   .name = string_init("ts"),
+   .name = "ts",
    .type = TDB_TIMESTAMP64,
   });
 
@@ -27,7 +27,7 @@ tdb_schema* tdb_schema_init(char* name, char* partition_fmt,
 
 void tdb_schema_add(tdb_schema* s, tdb_coltype type, char* name) {
   s->columns.push_back({
-   .name = string_init(name),
+   .name = name,
    .type = type,
   });
 }
@@ -68,4 +68,6 @@ size_t tdb_schema::column_stride(tdb_coltype type) {
             "TDB_TIMESTAMP32, TDB_TIMESTAMP16, or TDB_TIMESTAMP8\n");
     exit(1);
   }
+
+	return 0;
 }

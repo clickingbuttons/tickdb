@@ -2,3 +2,5 @@ test.c
 a.out
 build
 data
+.cache
+compile_commands.json

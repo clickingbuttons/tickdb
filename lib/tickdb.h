@@ -25,22 +25,24 @@ typedef struct tdb_partition {
 class tdb_table {
 public:
 	~tdb_table() {
-		this->close_columns();
+		close_columns();
 	}
   hashmap<i64, std::vector<tdb_block>> blocks;
   tdb_schema schema;
   size_t largest_col;
   size_t col_index;
   tdb_partition partition;
-	std::vector<string> symbols;
-  hashmap<string, i64> symbol_uids;
+	std::vector<std::string> symbols;
+  hashmap<std::string, i64> symbol_uids;
 	void open_column(size_t col_num);
 	void close_columns() {
-		for (tdb_col const& col : this->schema.columns) {
+		for (tdb_col const& col : schema.columns) {
 			if (col.data != NULL)
-				munmap(col.data, col.capacity * this->schema.column_stride(col.type));
+				munmap(col.data, col.capacity * schema.column_stride(col.type));
 		}
 	}
+	i64 sym_id(const char* symbol);
+	const char* sym_string(i64 symbol);
 };
 #else
 typedef struct tdb_table tdb_table;
