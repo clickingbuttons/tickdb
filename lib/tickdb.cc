@@ -2,12 +2,12 @@
 
 #include <errno.h>
 #include <fcntl.h> // open
+#include <filesystem>
 #include <linux/limits.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h> // ftruncate
-#include <filesystem>
 
 #define MIN_BLOCK_SIZE KIBIBYTES(64)
 #define NANOS_IN_SEC 1000000000L
@@ -65,7 +65,7 @@ static const char* column_ext(tdb_coltype type) {
 
 static size_t get_largest_col_size(tdb_schema* s) {
   size_t res = 1;
-	for (tdb_col const& col : s->columns) {
+  for (tdb_col const& col : s->columns) {
     size_t size = s->column_stride(col.type);
     if (size > res) {
       res = size;
@@ -76,9 +76,9 @@ static size_t get_largest_col_size(tdb_schema* s) {
 }
 
 static inline tdb_block* get_block(tdb_table* t, i64 symbol, i64 nanos) {
-	std::vector<tdb_block>* blocks = t->blocks.get(&symbol);
+  std::vector<tdb_block>* blocks = t->blocks.get(&symbol);
   if (blocks == NULL) {
-		std::vector<tdb_block> new_blocks;
+    std::vector<tdb_block> new_blocks;
     blocks = t->blocks.put(&symbol, &new_blocks);
   }
 
@@ -88,12 +88,12 @@ static inline tdb_block* get_block(tdb_table* t, i64 symbol, i64 nanos) {
     }
   }
 
-	blocks->push_back({
+  blocks->push_back({
    .symbol = symbol,
    .ts_min = nanos,
   });
 
-	return &blocks->back();
+  return &blocks->back();
 }
 
 static const char* second_fmts[] = {
@@ -151,37 +151,26 @@ static const char* year_fmts[] = {
 };
 
 static const int days_in_month[] = {
-	31,
-	28,
-	31,
-	30,
-	31,
-	30,
-	31,
-	31,
-	30,
-	31,
-	30,
-	31,
+ 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
 };
 
 static bool is_leap(int year) {
-	// leap year if perfectly divisible by 400
-	if (year % 400 == 0) {
-		return true;
-	}
-	// not a leap year if divisible by 100
-	// but not divisible by 400
-	else if (year % 100 == 0) {
-		return false;
-	}
-	// leap year if not divisible by 100
-	// but divisible by 4
-	else if (year % 4 == 0) {
-		return true;
-	}
-	// all other years are not leap years
-	return false;
+  // leap year if perfectly divisible by 400
+  if (year % 400 == 0) {
+    return true;
+  }
+  // not a leap year if divisible by 100
+  // but not divisible by 400
+  else if (year % 100 == 0) {
+    return false;
+  }
+  // leap year if not divisible by 100
+  // but divisible by 4
+  else if (year % 4 == 0) {
+    return true;
+  }
+  // all other years are not leap years
+  return false;
 }
 
 static i64 min_format_specifier(std::string* partition_fmt, struct tm* time) {
@@ -216,10 +205,10 @@ static i64 min_format_specifier(std::string* partition_fmt, struct tm* time) {
 
   for (int i = 0; i < sizeof(month_fmts) / sizeof(month_fmts[0]); i++) {
     if (strstr(haystack, month_fmts[i]) != NULL) {
-			u64 days = days_in_month[time->tm_mon];
-			if (time->tm_mon == 1 && is_leap(time->tm_year)) {
-				days += 1;
-			}
+      u64 days = days_in_month[time->tm_mon];
+      if (time->tm_mon == 1 && is_leap(time->tm_year)) {
+        days += 1;
+      }
       return 60 * 60 * 24 * days * NANOS_IN_SEC;
     }
   }
@@ -231,10 +220,10 @@ static i64 min_format_specifier(std::string* partition_fmt, struct tm* time) {
   // abbreviation * If timezone cannot be determined, no characters	CDT
   for (int i = 0; i < sizeof(year_fmts) / sizeof(year_fmts[0]); i++) {
     if (strstr(haystack, year_fmts[i]) != NULL) {
-			u64 days = 365;
-			if (is_leap(time->tm_year)) {
-				days += 1;
-			}
+      u64 days = 365;
+      if (is_leap(time->tm_year)) {
+        days += 1;
+      }
       return 60 * 60 * 24 * days * NANOS_IN_SEC;
     }
   }
@@ -243,27 +232,27 @@ static i64 min_format_specifier(std::string* partition_fmt, struct tm* time) {
 }
 
 static i64 min_partition_ts(tdb_schema* schema, i64 epoch_nanos) {
-	struct tm time = nanos_to_tm(epoch_nanos);
+  struct tm time = nanos_to_tm(epoch_nanos);
   i64 increment = min_format_specifier(&schema->partition_fmt, &time);
   return epoch_nanos - epoch_nanos % increment;
 }
 
 static i64 max_partition_ts(tdb_schema* schema, i64 epoch_nanos) {
-	struct tm time = nanos_to_tm(epoch_nanos);
+  struct tm time = nanos_to_tm(epoch_nanos);
   i64 increment = min_format_specifier(&schema->partition_fmt, &time);
   return (epoch_nanos / increment + 1) * increment;
 }
 
 void tdb_table::open_column(size_t col_num) {
-	tdb_table* t = this;
+  tdb_table* t = this;
   tdb_col* col = t->schema.columns.data() + col_num;
 
-	std::filesystem::path col_path = "data";
-	col_path /=	t->partition.name;
-	col_path /= col->name + "." + column_ext(col->type);
+  std::filesystem::path col_path = "data";
+  col_path /= t->partition.name;
+  col_path /= col->name + "." + column_ext(col->type);
 
   printf("open col %s\n", col_path.c_str());
-	std::filesystem::create_directories(col_path.parent_path());
+  std::filesystem::create_directories(col_path.parent_path());
 
   int fd = open(col_path.c_str(), O_RDWR);
   if (fd == -1 && errno == ENOENT) {
@@ -286,7 +275,6 @@ void tdb_table::open_column(size_t col_num) {
   }
 }
 
-
 tdb_table* tdb_table_init(tdb_schema* s) {
   tdb_table* res = new tdb_table();
   res->schema = *s;
@@ -297,9 +285,7 @@ tdb_table* tdb_table_init(tdb_schema* s) {
   return res;
 }
 
-void tdb_table_close(tdb_table* t) {
-	t->~tdb_table();
-}
+void tdb_table_close(tdb_table* t) { t->~tdb_table(); }
 
 void tdb_table_write_data(tdb_table* t, void* data, size_t size) {
   tdb_col* col = t->schema.columns.data() + t->col_index;
@@ -312,18 +298,14 @@ void tdb_table_write_data(tdb_table* t, void* data, size_t size) {
 }
 
 i64 tdb_table::sym_id(const char* symbol) {
-	std::string s = symbol;
+  std::string s = symbol;
   i64* sym = symbol_uids.get(&s);
   if (sym == NULL) {
-		symbols.push_back(s);
-		i64 size = symbols.size();
+    symbols.push_back(s);
+    i64 size = symbols.size();
     sym = symbol_uids.put(&s, &size);
   }
 
-	if (*sym == 0) {
-		perror(symbol);
-		exit(1);
-	}
   return *sym;
 }
 
@@ -332,7 +314,7 @@ const char* tdb_table::sym_string(i64 symbol) {
 }
 
 void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
-	i64 sym_id = t->sym_id(symbol);
+  i64 sym_id = t->sym_id(symbol);
   tdb_block* block = get_block(t, sym_id, epoch_nanos);
   if (strlen(t->partition.name) == 0 || epoch_nanos < t->partition.ts_min ||
       epoch_nanos > t->partition.ts_max) {
@@ -342,8 +324,7 @@ void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
     size_t written = strftime(t->partition.name, TDB_MAX_FMT_LEN,
                               t->schema.partition_fmt.c_str(), &time);
     if (written == 0) {
-      fprintf(stderr, "partition_fmt longer than %d\n",
-              TDB_MAX_FMT_LEN);
+      fprintf(stderr, "partition_fmt longer than %d\n", TDB_MAX_FMT_LEN);
       exit(EXIT_FAILURE);
     }
 
@@ -356,6 +337,6 @@ void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
     t->close_columns();
   }
 
-	size_t ts_stride = t->schema.column_stride(t->schema.columns[0].type);
+  size_t ts_stride = t->schema.column_stride(t->schema.columns[0].type);
   tdb_table_write_data(t, &epoch_nanos, ts_stride);
 }

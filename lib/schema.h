@@ -24,10 +24,10 @@ typedef enum tickdb_coltype {
 } tdb_coltype;
 
 #ifdef __cplusplus
-#include <vector>
 #include <string>
+#include <vector>
 typedef struct tdb_col {
-	std::string name;
+  std::string name;
   tdb_coltype type;
 
   // Internal
@@ -38,15 +38,15 @@ typedef struct tdb_col {
 
 class tdb_schema {
 public:
-	std::string name;
+  std::string name;
   std::string ts_name;
   std::string partition_fmt; // strftime format
   std::string sym_name;
-	std::string sym_universe;
+  std::string sym_universe;
   tdb_coltype sym_type;
   size_t block_size;
-	std::vector<tdb_col> columns;
-	size_t column_stride(tdb_coltype type);
+  std::vector<tdb_col> columns;
+  size_t column_stride(tdb_coltype type);
 };
 #else
 typedef struct tdb_schema tdb_schema;
@@ -58,6 +58,9 @@ typedef struct tdb_schema tdb_schema;
 #define TDBAPI
 #endif
 
-TDBAPI tdb_schema* tdb_schema_init(char* name, char* partition_fmt, tdb_coltype sym_type, char* sym_universe);
-TDBAPI void tdb_schema_add(tdb_schema* s, tdb_coltype type, char* column_name);
+TDBAPI tdb_schema* tdb_schema_init(const char* name, const char* partition_fmt,
+                                   tdb_coltype sym_type,
+                                   const char* sym_universe);
+TDBAPI void tdb_schema_add(tdb_schema* s, tdb_coltype type,
+                           const char* column_name);
 TDBAPI void tdb_schema_free(tdb_schema* s);
