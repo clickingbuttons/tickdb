@@ -20,18 +20,18 @@ typedef struct tdb_partition {
 } tdb_partition;
 
 #ifdef __cplusplus
-#include "hashmap.h"
+#include "tsl/robin_map.h"
 #include <vector>
 class tdb_table {
 public:
   ~tdb_table() { close_columns(); }
-  hashmap<i64, std::vector<tdb_block>> blocks;
+	tsl::robin_map<i64, std::vector<tdb_block>> blocks;
   tdb_schema schema;
   size_t largest_col;
   size_t col_index;
   tdb_partition partition;
   std::vector<std::string> symbols;
-  hashmap<std::string, i64> symbol_uids;
+	tsl::robin_map<std::string, i64> symbol_uids;
   void open_column(size_t col_num);
   void close_columns() {
     for (tdb_col const& col : schema.columns) {
@@ -41,6 +41,7 @@ public:
   }
   i64 sym_id(const char* symbol);
   const char* sym_string(i64 symbol);
+	tdb_block* get_block(i64 symbol, i64 nanos);
 	void write(const char* symbol, i64 epoch_nanos);
 	void write_data(void* data, size_t size);
 };

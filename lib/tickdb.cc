@@ -13,34 +13,31 @@
 #define MIN_BLOCK_SIZE KIBIBYTES(64)
 #define NANOS_IN_SEC 1000000000L
 
-static tdb_block* get_block(tdb_table* t, i64 symbol, i64 nanos) {
-  std::vector<tdb_block>* blocks = t->blocks.get(&symbol);
-  if (blocks == NULL) {
-    std::vector<tdb_block> new_blocks;
-    blocks = t->blocks.put(&symbol, &new_blocks);
-  }
+tdb_block* tdb_table::get_block(i64 symbol, i64 nanos) {
+	// This inserts empty vec if doesn't exist
+  std::vector<tdb_block>* blocs = &blocks[symbol];
 
-  for (tdb_block& b : *blocks) {
+  for (tdb_block& b : *blocs) {
     if (nanos >= b.ts_min) {
       return &b;
     }
   }
 
-  blocks->push_back({
+  blocs->push_back({
    .symbol = symbol,
    .ts_min = nanos,
   });
 
-  return &blocks->back();
+  return &blocs->back();
 }
 
-static i64 min_partition_ts(tdb_schema* schema, i64 epoch_nanos) {
+i64 min_partition_ts(tdb_schema* schema, i64 epoch_nanos) {
   struct tm time = nanos_to_tm(epoch_nanos);
   i64 increment = min_format_specifier(&schema->partition_fmt, &time);
   return epoch_nanos - epoch_nanos % increment;
 }
 
-static i64 max_partition_ts(tdb_schema* schema, i64 epoch_nanos) {
+i64 max_partition_ts(tdb_schema* schema, i64 epoch_nanos) {
   struct tm time = nanos_to_tm(epoch_nanos);
   i64 increment = min_format_specifier(&schema->partition_fmt, &time);
   return (epoch_nanos / increment + 1) * increment;
@@ -90,19 +87,20 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 
 i64 tdb_table::sym_id(const char* symbol) {
   std::string s = symbol;
-  i64* sym = symbol_uids.get(&s);
-  if (sym == NULL) {
+  auto sym = symbol_uids.find(s);
+  if (sym == symbol_uids.end()) {
     symbols.push_back(s);
     i64 size = symbols.size();
-    sym = symbol_uids.put(&s, &size);
+    symbol_uids[s] = size;
+		return size;
   }
 
-  return *sym;
+  return sym->second;
 }
 
 void tdb_table::write(const char* symbol, i64 epoch_nanos) {
   i64 sym = sym_id(symbol);
-  tdb_block* block = get_block(this, sym, epoch_nanos);
+  tdb_block* block = get_block(sym, epoch_nanos);
   if (strlen(partition.name) == 0 || epoch_nanos < partition.ts_min ||
       epoch_nanos > partition.ts_max) {
     // Calling strftime for each row is bad perf, so instead compute min/max
