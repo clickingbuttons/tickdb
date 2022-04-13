@@ -1,5 +1,0 @@
-- [ ] write symbols
-- [ ] write block metadata
-
-- [ ] mmap grow
-- [ ] writer lock
