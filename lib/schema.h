@@ -1,6 +1,9 @@
 #pragma once
 
 #include "string.h"
+#include "vec.h"
+
+extern "C" {
 
 typedef enum tickdb_coltype {
   TDB_TIMESTAMP, // User gives us this so we can figure it out ourselves
@@ -35,30 +38,22 @@ typedef struct tdb_col {
   size_t size;
 } tdb_col;
 
-#ifdef __cplusplus
-#include <vector>
-class tdb_schema {
-public:
+typedef vec_t(tdb_col) vec_tdb_col;
+
+typedef struct tdb_schema {
   string name;
   string ts_name;
   string partition_fmt; // strftime format
   string sym_name;
   tdb_coltype sym_type;
   string sym_universe;
+  vec_tdb_col columns;
   size_t block_size;
-	std::vector<tdb_col> columns;
-	size_t column_stride(tdb_coltype type);
-};
-#else
-typedef struct tdb_schema tdb_schema;
-#endif
+} tdb_schema;
 
-#ifdef __cplusplus
-#define TDBAPI extern "C"
-#else
-#define TDBAPI
-#endif
+tdb_schema tdb_schema_init(char* name, char* partition_fmt,
+                           tdb_coltype sym_type, char* sym_universe);
+void tdb_schema_add(tdb_schema* schema, tdb_coltype type, char* column_name);
+void tdb_schema_free(tdb_schema* s);
 
-TDBAPI tdb_schema* tdb_schema_init(char* name, char* partition_fmt, tdb_coltype sym_type, char* sym_universe);
-TDBAPI void tdb_schema_add(tdb_schema* s, tdb_coltype type, char* column_name);
-TDBAPI void tdb_schema_free(tdb_schema* s);
+} // extern "C"
