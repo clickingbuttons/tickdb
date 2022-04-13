@@ -1,5 +1,7 @@
 #pragma once
 
+#include "string.h"
+
 typedef enum tickdb_coltype {
   TDB_TIMESTAMP, // User gives us this so we can figure it out ourselves
   TDB_TIMESTAMP8,
@@ -23,11 +25,8 @@ typedef enum tickdb_coltype {
   TDB_DOUBLE,
 } tdb_coltype;
 
-#ifdef __cplusplus
-#include <vector>
-#include <string>
 typedef struct tdb_col {
-	std::string name;
+  string name;
   tdb_coltype type;
 
   // Internal
@@ -36,14 +35,16 @@ typedef struct tdb_col {
   size_t size;
 } tdb_col;
 
+#ifdef __cplusplus
+#include <vector>
 class tdb_schema {
 public:
-	std::string name;
-  std::string ts_name;
-  std::string partition_fmt; // strftime format
-  std::string sym_name;
-	std::string sym_universe;
+  string name;
+  string ts_name;
+  string partition_fmt; // strftime format
+  string sym_name;
   tdb_coltype sym_type;
+  string sym_universe;
   size_t block_size;
 	std::vector<tdb_col> columns;
 	size_t column_stride(tdb_coltype type);

@@ -1,4 +1,3 @@
-CC=clang
 BUILD_DIR := ../build
 LIB := tickdb
 CFLAGS += -g -O3

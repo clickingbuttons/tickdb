@@ -7,7 +7,6 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h> // ftruncate
-#include <filesystem>
 
 #define MIN_BLOCK_SIZE KIBIBYTES(64)
 #define NANOS_IN_SEC 1000000000L
@@ -184,8 +183,8 @@ static bool is_leap(int year) {
 	return false;
 }
 
-static i64 min_format_specifier(std::string* partition_fmt, struct tm* time) {
-  const char* haystack = partition_fmt->c_str();
+static i64 min_format_specifier(string* partition_fmt, struct tm* time) {
+  char* haystack = string_data(partition_fmt);
   for (int i = 0; i < sizeof(second_fmts) / sizeof(second_fmts[0]); i++) {
     if (strstr(haystack, second_fmts[i]) != NULL) {
       return NANOS_IN_SEC;
@@ -258,41 +257,68 @@ void tdb_table::open_column(size_t col_num) {
 	tdb_table* t = this;
   tdb_col* col = t->schema.columns.data() + col_num;
 
-	std::filesystem::path col_path = "data";
-	col_path /=	t->partition.name;
-	col_path /= col->name + "." + column_ext(col->type);
+  string col_path = string_init("data/");
+  string_catc(&col_path, t->partition.name);
+  string_catc(&col_path, "/");
+  string_cat(&col_path, &col->name);
+  string_catc(&col_path, ".");
+  string_catc(&col_path, column_ext(col->type));
 
-  printf("open col %s\n", col_path.c_str());
-	std::filesystem::create_directories(col_path.parent_path());
+  printf("open col %s\n", sdata(col_path));
+  if (string_size(&col_path) > PATH_MAX) {
+    fprintf(stderr, "Column file %s is longer than PATH_MAX of %d\n",
+            sdata(col_path), PATH_MAX);
+  }
 
-  int fd = open(col_path.c_str(), O_RDWR);
+  string builder = string_init("");
+  int last_dir = 0;
+  for (int i = 0; i < string_size(&col_path); i++) {
+    if (sdata(col_path)[i] == '/') {
+      string_catn(&builder, sdata(col_path) + last_dir, i - last_dir);
+      if (mkdir(sdata(builder), S_IRWXU | S_IRWXG | S_IRWXO)) {
+        if (errno != EEXIST) {
+          perror(sdata(builder));
+          exit(1);
+        }
+      }
+      last_dir = i;
+    }
+  }
+  string_free(&builder);
+
+  int fd = open(sdata(col_path), O_RDWR);
   if (fd == -1 && errno == ENOENT) {
-    fd = open(col_path.c_str(), O_CREAT | O_RDWR, S_IRWXU);
+    fd = open(sdata(col_path), O_CREAT | O_RDWR, S_IRWXU);
     if (ftruncate(fd, GIGABYTES(1)) != 0) {
-      perror(col_path.c_str());
+      perror(sdata(col_path));
       exit(1);
     }
   }
   if (fd == -1) {
-    perror(col_path.c_str());
+    perror(sdata(col_path));
     exit(1);
   }
 
   col->data =
    (char*)mmap(NULL, GIGABYTES(1), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   if (col->data == MAP_FAILED) {
-    perror(col_path.c_str());
+    string_catc(&col_path, " mmap");
+    perror(sdata(col_path));
     exit(1);
   }
+  string_free(&col_path);
 }
 
 
 tdb_table* tdb_table_init(tdb_schema* s) {
+  tdb_schema schema_copy;
+  memcpy(&schema_copy, s, sizeof(tdb_schema));
+  size_t sym_size = s->column_stride(s->sym_type);
+
   tdb_table* res = new tdb_table();
-  res->schema = *s;
+  res->schema = schema_copy;
   res->largest_col = get_largest_col_size(s);
   res->partition = {0};
-  memcpy(&res->schema, s, sizeof(tdb_schema));
 
   return res;
 }
@@ -311,36 +337,30 @@ void tdb_table_write_data(tdb_table* t, void* data, size_t size) {
   t->col_index = (t->col_index + 1) % t->schema.columns.size();
 }
 
-i64 tdb_table::sym_id(const char* symbol) {
-	std::string s = symbol;
-  i64* sym = symbol_uids.get(&s);
+i64 tdb_table_stoi(tdb_table* t, char* symbol) {
+  string s = string_init(symbol);
+  i64* sym = t->symbol_uids.get(&s);
   if (sym == NULL) {
-		symbols.push_back(s);
-		i64 size = symbols.size();
-    sym = symbol_uids.put(&s, &size);
+		t->symbols.push_back(s);
+		i64 size = t->symbols.size();
+    sym = t->symbol_uids.put(&s, &size);
   }
-
-	if (*sym == 0) {
-		perror(symbol);
-		exit(1);
-	}
   return *sym;
 }
 
-const char* tdb_table::sym_string(i64 symbol) {
-  return symbols[symbol - 1].c_str();
+char* tdb_table_itos(tdb_table* t, i64 symbol) {
+  return sdata(t->symbols[symbol - 1]);
 }
 
 void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
-	i64 sym_id = t->sym_id(symbol);
-  tdb_block* block = get_block(t, sym_id, epoch_nanos);
+  tdb_block* block = get_block(t, tdb_table_stoi(t, symbol), epoch_nanos);
   if (strlen(t->partition.name) == 0 || epoch_nanos < t->partition.ts_min ||
       epoch_nanos > t->partition.ts_max) {
     // Calling strftime for each row is bad perf, so instead compute min/max
     // ts's for partition
     struct tm time = nanos_to_tm(epoch_nanos);
     size_t written = strftime(t->partition.name, TDB_MAX_FMT_LEN,
-                              t->schema.partition_fmt.c_str(), &time);
+                              sdata(t->schema.partition_fmt), &time);
     if (written == 0) {
       fprintf(stderr, "partition_fmt longer than %d\n",
               TDB_MAX_FMT_LEN);
