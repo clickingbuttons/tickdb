@@ -42,7 +42,7 @@ void tdb_table_write_data(tdb_table* t, void* data, size_t size) {
 
 size_t tdb_table_stoi(tdb_table* t, char* symbol) {
   string s = string_init(symbol);
-  size_t* sym = (size_t*)_hm_get(&t->symbol_uids, &s);
+  size_t* sym = _hm_get(&t->symbol_uids, &s);
   if (sym == NULL) {
     vec_push_ptr(&t->symbols, &s);
     sym = (size_t*)_hm_put(&t->symbol_uids, &s, &t->symbols.len);

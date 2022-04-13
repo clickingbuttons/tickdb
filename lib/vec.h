@@ -26,7 +26,7 @@ typedef vec_t(f64) vec_f64;
 // vec_i64 new_blocks = { 0 };
 #define vec_resize(v, nmemb)                                                   \
   {                                                                            \
-    (v)->data = (typeof((v)->data))realloc((v)->data, nmemb * sizeof(*(v)->data));                \
+    (v)->data = realloc((v)->data, nmemb * sizeof(*(v)->data));                \
     (v)->cap = nmemb;                                                          \
   }
 
