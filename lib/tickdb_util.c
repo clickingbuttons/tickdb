@@ -11,9 +11,10 @@
 #define NANOS_IN_SEC 1000000000L
 
 static struct tm nanos_to_tm(i64 nanos) {
-  nanos /= NANOS_IN_SEC;
   struct tm res;
-  memcpy(&res, localtime(&nanos), sizeof(struct tm));
+  nanos /= NANOS_IN_SEC;
+	// TODO: localtime config flag
+  memcpy(&res, gmtime(&nanos), sizeof(struct tm));
   return res;
 }
 
@@ -94,10 +95,9 @@ static const char* column_ext(tdb_table* t, tdb_coltype type) {
   }
 }
 
-static size_t get_largest_col_size(tdb_schema* s) {
+static size_t largest_col_size(tdb_schema* s) {
   size_t res = 1;
-  for (int i = 0; i < s->columns.len; i++) {
-    tdb_col* col = s->columns.data + i;
+	for_each(col, s->columns) {
     size_t size = column_stride(s, col->type);
     if (size > res) {
       res = size;
@@ -109,25 +109,28 @@ static size_t get_largest_col_size(tdb_schema* s) {
 
 typedef vec_t(tdb_block) vec_tdb_block;
 
-static inline tdb_block* get_block(tdb_table* t, i64 symbol, i64 nanos) {
+static tdb_block* get_block(tdb_table* t, i64 symbol, i64 nanos) {
   vec_tdb_block* blocks = _hm_get(&t->blocks, &symbol);
   if (blocks == NULL) {
     vec_tdb_block new_blocks = { 0 };
     blocks = hm_put(&t->blocks, symbol, new_blocks);
   }
 
-  for (size_t i = 0; i < blocks->len; i++) {
-    tdb_block* b = blocks->data + i;
+	for_each(b, *blocks) {
     if (nanos >= b->ts_min) {
       return b;
     }
+	};
+
+  for (size_t i = 0; i < blocks->len; i++) {
+    tdb_block* b = blocks->data + i;
   }
 
   tdb_block new_block = {
    .symbol = symbol,
    .ts_min = nanos,
   };
-  vec_push(blocks, new_block);
+  vec_push(*blocks, new_block);
 
 	return blocks->data + blocks->len;
 }
@@ -202,53 +205,35 @@ static int days_in_month[] = {
 };
 
 static bool is_leap(int year) {
-	// leap year if perfectly divisible by 400
-	if (year % 400 == 0) {
+	if (year % 400 == 0)
 		return true;
-	}
-	// not a leap year if divisible by 100
-	// but not divisible by 400
-	else if (year % 100 == 0) {
+	else if (year % 100 == 0)
 		return false;
-	}
-	// leap year if not divisible by 100
-	// but divisible by 4
-	else if (year % 4 == 0) {
+	else if (year % 4 == 0)
 		return true;
-	}
-	// all other years are not leap years
 	return false;
 }
 
 static i64 min_format_specifier(string* partition_fmt, struct tm* time) {
   char* haystack = string_data(partition_fmt);
-  for (int i = 0; i < sizeof(second_fmts) / sizeof(second_fmts[0]); i++) {
-    if (strstr(haystack, second_fmts[i]) != NULL) {
+  for (int i = 0; i < sizeof(second_fmts) / sizeof(second_fmts[0]); i++)
+    if (strstr(haystack, second_fmts[i]) != NULL)
       return NANOS_IN_SEC;
-    }
-  }
 
-  for (int i = 0; i < sizeof(minute_fmts) / sizeof(minute_fmts[0]); i++) {
-    if (strstr(haystack, minute_fmts[i]) != NULL) {
+  for (int i = 0; i < sizeof(minute_fmts) / sizeof(minute_fmts[0]); i++)
+    if (strstr(haystack, minute_fmts[i]) != NULL)
       return 60 * NANOS_IN_SEC;
-    }
-  }
 
-  for (int i = 0; i < sizeof(hour_fmts) / sizeof(hour_fmts[0]); i++) {
-    if (strstr(haystack, hour_fmts[i]) != NULL) {
+  for (int i = 0; i < sizeof(hour_fmts) / sizeof(hour_fmts[0]); i++)
+    if (strstr(haystack, hour_fmts[i]) != NULL)
       return 60 * 60 * NANOS_IN_SEC;
-    }
-  }
 
-  if (strstr(haystack, "%p") != NULL) { // AM or PM designation
+  if (strstr(haystack, "%p") != NULL) // AM or PM designation
     return 60 * 60 * 12 * NANOS_IN_SEC;
-  }
 
-  for (int i = 0; i < sizeof(day_fmts) / sizeof(day_fmts[0]); i++) {
-    if (strstr(haystack, day_fmts[i]) != NULL) {
+  for (int i = 0; i < sizeof(day_fmts) / sizeof(day_fmts[0]); i++)
+    if (strstr(haystack, day_fmts[i]) != NULL)
       return 60 * 60 * 24 * NANOS_IN_SEC;
-    }
-  }
 
   for (int i = 0; i < sizeof(month_fmts) / sizeof(month_fmts[0]); i++) {
     if (strstr(haystack, month_fmts[i]) != NULL) {
@@ -294,24 +279,20 @@ static void open_column(tdb_table* t, size_t col_num) {
   tdb_col* cols = (tdb_col*)t->schema.columns.data;
   tdb_col* col = cols + col_num;
 
-  string col_path = string_init("data/");
-  string_catc(&col_path, t->partition.name);
-  string_catc(&col_path, "/");
-  string_cat(&col_path, &col->name);
-  string_catc(&col_path, ".");
-  string_catc(&col_path, column_ext(t, col->type));
+	char col_path[PATH_MAX];
+	size_t col_path_len = snprintf(col_path, PATH_MAX, "data/%s/%s.%s", t->partition.name, sdata(col->name), column_ext(t, col->type));
 
-  printf("open col %s\n", sdata(col_path));
-  if (string_size(&col_path) > PATH_MAX) {
+  if (col_path_len > PATH_MAX) {
     fprintf(stderr, "Column file %s is longer than PATH_MAX of %d\n",
-            sdata(col_path), PATH_MAX);
+            col_path, PATH_MAX);
   }
+  printf("open col %s\n", col_path);
 
   string builder = string_init("");
   int last_dir = 0;
-  for (int i = 0; i < string_size(&col_path); i++) {
-    if (sdata(col_path)[i] == '/') {
-      string_catn(&builder, sdata(col_path) + last_dir, i - last_dir);
+  for (int i = 0; i < col_path_len; i++) {
+    if (col_path[i] == '/') {
+      string_catn(&builder, col_path + last_dir, i - last_dir);
       if (mkdir(sdata(builder), S_IRWXU | S_IRWXG | S_IRWXO)) {
         if (errno != EEXIST) {
           perror(sdata(builder));
@@ -323,32 +304,29 @@ static void open_column(tdb_table* t, size_t col_num) {
   }
   string_free(&builder);
 
-  int fd = open(sdata(col_path), O_RDWR);
+  int fd = open(col_path, O_RDWR);
   if (fd == -1 && errno == ENOENT) {
-    fd = open(sdata(col_path), O_CREAT | O_RDWR, S_IRWXU);
+    fd = open(col_path, O_CREAT | O_RDWR, S_IRWXU);
     if (ftruncate(fd, GIGABYTES(1)) != 0) {
-      perror(sdata(col_path));
+      perror(col_path);
       exit(1);
     }
   }
   if (fd == -1) {
-    perror(sdata(col_path));
+    perror(col_path);
     exit(1);
   }
 
   col->data =
    mmap(NULL, GIGABYTES(1), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   if (col->data == MAP_FAILED) {
-    string_catc(&col_path, " mmap");
-    perror(sdata(col_path));
+    perror(col_path);
     exit(1);
   }
-  string_free(&col_path);
 }
 
 static void close_columns(tdb_table* t) {
-  for (int i = 0; i < t->schema.columns.len; i++) {
-    tdb_col* col = t->schema.columns.data + i;
+	for_each(col, t->schema.columns) {
     if (col->data != NULL)
       munmap(col->data, col->capacity * column_stride(&t->schema, col->type));
     string_free(&col->name);

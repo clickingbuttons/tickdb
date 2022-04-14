@@ -30,7 +30,7 @@ typedef struct tdb_table {
   hashmap symbol_uids;     // symbol (char*): int
 } tdb_table;
 
-tdb_table tdb_table_init(tdb_schema* s);
+tdb_table* tdb_table_init(tdb_schema* s);
 
 void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos);
 void tdb_table_write_data(tdb_table* t, void* data, size_t size);

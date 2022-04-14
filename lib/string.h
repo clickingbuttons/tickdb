@@ -4,8 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Inspired by clang's sso_string
-// https://www.youtube.com/watch?v=kPR8h4-qZdk
+// Thanks izabera: https://github.com/izabera/s/blob/master/LICENSE
 
 typedef union string {
   // allow strings up to 15 bytes to stay on the stack

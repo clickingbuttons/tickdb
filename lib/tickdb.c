@@ -4,18 +4,16 @@
 
 #include "tickdb_util.c"
 
-tdb_table tdb_table_init(tdb_schema* s) {
+tdb_table* tdb_table_init(tdb_schema* s) {
   tdb_schema schema_copy;
   memcpy(&schema_copy, s, sizeof(tdb_schema));
   size_t sym_size = column_stride(s, s->sym_type);
 
-  tdb_table res = {
-   .schema = schema_copy,
-   .largest_col = get_largest_col_size(s),
-   .partition = {0},
-   .blocks = hm_init(sym_size, tdb_block),
-   .symbol_uids = _hm_init(sizeof(string), sym_size),
-  };
+  tdb_table* res = calloc(sizeof(tdb_table), 1);
+  res->schema = schema_copy;
+  res->largest_col = largest_col_size(s);
+  res->blocks = hm_init(sym_size, tdb_block);
+  res->symbol_uids = _hm_init(sizeof(string), sym_size);
 
   return res;
 }
@@ -27,6 +25,7 @@ void tdb_table_close(tdb_table* t) {
   hm_free(&t->blocks);
   vec_free(&t->symbols);
   hm_free(&t->symbol_uids);
+	free(t);
 }
 
 void tdb_table_write_data(tdb_table* t, void* data, size_t size) {
