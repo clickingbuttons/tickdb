@@ -50,6 +50,6 @@ typedef struct tdb_schema {
 } tdb_schema;
 
 tdb_schema* tdb_schema_init(char* name, char* partition_fmt,
-                           tdb_coltype sym_type, char* sym_universe);
+                            tdb_coltype sym_type, char* sym_universe);
 void tdb_schema_add(tdb_schema* schema, tdb_coltype type, char* column_name);
 void tdb_schema_free(tdb_schema* s);

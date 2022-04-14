@@ -33,11 +33,11 @@ typedef vec_t(f64) vec_f64;
 #define vec_push_ptr(v, ptr)                                                   \
   {                                                                            \
     if ((v)->len + 1 > (v)->cap) {                                             \
-      if ((v)->cap == 0) {                                                       \
+      if ((v)->cap == 0) {                                                     \
         vec_resize((v), VEC_DEFAULT_CAPACITY);                                 \
-			} else {                                                                     \
+      } else {                                                                 \
         vec_resize((v), (v)->cap * 2);                                         \
-			} \
+      }                                                                        \
     }                                                                          \
     typeof((v)->data) dest = (v)->data + (v)->len;                             \
     memcpy(dest, ptr, sizeof(*(v)->data));                                     \
@@ -52,4 +52,5 @@ typedef vec_t(f64) vec_f64;
     (v)->data = NULL;                                                          \
   }
 
-#define for_each(i, c) for (typeof((c).data) i = (c).data; i < (c).data + (c).len; i++)
+#define for_each(i, c)                                                         \
+  for (typeof((c).data) i = (c).data; i < (c).data + (c).len; i++)

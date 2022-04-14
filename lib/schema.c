@@ -1,23 +1,23 @@
 #include "schema.h"
 
 tdb_schema* tdb_schema_init(char* name, char* partition_fmt,
-                           tdb_coltype sym_type, char* sym_universe) {
+                            tdb_coltype sym_type, char* sym_universe) {
   tdb_schema* res = calloc(sizeof(tdb_schema), 1);
-	res->name = string_init(name);
-	res->sym_name = string_init("sym");
-	res->ts_name = string_init("ts");
-	res->partition_fmt = string_init(partition_fmt);
-	res->sym_universe = string_init(sym_universe);
-	res->sym_type = sym_type;
+  res->name = string_init(name);
+  res->sym_name = string_init("sym");
+  res->ts_name = string_init("ts");
+  res->partition_fmt = string_init(partition_fmt);
+  res->sym_universe = string_init(sym_universe);
+  res->sym_type = sym_type;
 
   // TODO: support "resolution" which downscales "epoch_nanos"
-	// >>> math.log2(24*60) Minutes
+  // >>> math.log2(24*60) Minutes
   // 10.491853096329674
   // >>> math.log2(24*60*60) Seconds
   // 16.398743691938193
   // >>> math.log2(24*60*60*10000) .1ms
   // 29.686456071487644
-	tdb_col ts = {
+  tdb_col ts = {
    .name = string_init("ts"),
    .type = TDB_TIMESTAMP64,
   };
@@ -40,8 +40,6 @@ void tdb_schema_free(tdb_schema* s) {
   string_free(&s->ts_name);
   string_free(&s->partition_fmt);
   string_free(&s->sym_universe);
-	for_each(col, s->columns) {
-    string_free(&col->name);
-  }
-	free(s);
+  for_each(col, s->columns) { string_free(&col->name); }
+  free(s);
 }
