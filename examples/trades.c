@@ -49,8 +49,9 @@ int main(void) {
 
 	int num_trades = 10000000;
 	trade t;
-	for (int i = 0; i < num_trades; i++) {
+	for (int i = 1; i <= num_trades; i++) {
 		generate_trade(&t);
+		//w;printf("i %d\n", i);
 		if (i % 1000000 == 0) {
 			printf("%d %s\n", i, t.sym);
 		}

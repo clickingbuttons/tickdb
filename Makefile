@@ -5,7 +5,7 @@ LIBSO := lib$(LIB).so
 BUILD_DIR ?= ./build
 SRC_DIR ?= ./lib
 LDFLAGS ?= -shared
-CFLAGS += -std=gnu11 -g -fpic -O3
+CFLAGS += -std=gnu11 -g -fpic -O3 -fvisibility=hidden
 
 SRCS := $(wildcard lib/*.c)
 OBJS := $(SRCS:%=$(BUILD_DIR)/obj/%.o)

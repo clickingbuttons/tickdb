@@ -135,6 +135,13 @@ static bool string_equals(const string* s1, const string* s2) {
 	return string_cmp(s1, s2) == 0;
 }
 
+// this leaks if the string is too long but it's very handy for short strings
+// "" causes a compile time error if x is not a string literal or too long
+// _Static_assert is a declaration, not an expression.  fizzie came up with this hack
+#define string_tmp(x) \
+  ((void)((struct { _Static_assert(sizeof x <= 16, "it's too big"); int dummy; }){1}), \
+   string_init(x))
+
 #ifdef TEST_STRING
 #include <unistd.h>
 int main(void) {
@@ -143,6 +150,6 @@ int main(void) {
 	string a = string_init(buffer);
 	read(STDIN_FILENO, buffer, 10);
 	string b = string_init(buffer);
-	printf("%d\n", string_cmp(&a, &b) == 0);
+	printf("%d\n", string_cmp(&a, &b));
 }
 #endif

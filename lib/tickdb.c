@@ -1,8 +1,7 @@
+#include "column.h"
 #include "tickdb.h"
 
 #define MIN_BLOCK_SIZE KIBIBYTES(64)
-
-#include "tickdb_util.c"
 
 static u64 hm_string_hash(const void* key, size_t _, void* __) {
 	return string_hash((string*)key);
@@ -17,7 +16,7 @@ static bool hm_string_equals(const void* key1, const void* key2, void* _) {
 tdb_table* tdb_table_init(tdb_schema* s) {
 	tdb_table* res = calloc(sizeof(tdb_table), 1);
 	res->schema = s;
-	res->largest_col = largest_col_size(s);
+	res->largest_col = max_col_stride(s);
 	res->blocks = hm_init(i32, vec_tdb_block);
 	res->symbol_uids = hm_init(string, i32);
 	res->symbol_uids.equals = hm_string_equals;
@@ -27,7 +26,8 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 }
 
 void tdb_table_free(tdb_table* t) {
-	close_columns(t);
+	for_each(col, t->schema->columns)
+		col_close(col);
 	tdb_schema_free(t->schema);
 
 	hm_iter(&t->blocks) vec_free((vec_tdb_block*)val);
@@ -37,15 +37,18 @@ void tdb_table_free(tdb_table* t) {
 	free(t);
 }
 
-void tdb_table_write_data(tdb_table* t, void* data, size_t size) {
-	tdb_col* cols = (tdb_col*)t->schema->columns.data;
-	tdb_col* col = cols + t->col_index;
-	if (col->data == NULL) {
-		open_column(t, t->col_index);
-	}
-	memcpy(col->data + col->size, data, size);
-	col->size += size;
+i32 tdb_table_write_data(tdb_table* t, void* data, size_t size) {
+	tdb_col* col = (tdb_col*)t->schema->columns.data + t->col_index;
+	if (col->data == NULL)
+		if (col_open(col, t->partition.name))
+			return 1;
+	if (col->len + 1 > col->capacity)
+		col_grow(col, col->capacity * 2);
+	memcpy(col->data + col->len * col->stride, data, size);
+	col->len += 1;
 	t->col_index = (t->col_index + 1) % t->schema->columns.len;
+
+	return 0;
 }
 
 i32 tdb_table_stoi(tdb_table* t, char* symbol) {
@@ -64,31 +67,52 @@ char* tdb_table_itos(tdb_table* t, i64 symbol) {
 	return sdata(symbols[symbol - 1]);
 }
 
-void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
+static tdb_block* get_block(tdb_table* t, i32 symbol, i64 nanos) {
+	vec_tdb_block* blocks = _hm_get(&t->blocks, &symbol);
+	if (blocks == NULL) {
+		vec_tdb_block new_blocks = {0};
+		blocks = hm_put(t->blocks, symbol, new_blocks);
+	}
+
+	for_each(b, *blocks) if (nanos >= b->ts_min) return b;
+
+	tdb_block new_block = {
+	 .symbol = symbol,
+	 .ts_min = nanos,
+	};
+	vec_push_ptr(blocks, &new_block);
+
+	return blocks->data + blocks->len;
+}
+
+i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
 	i32 id = tdb_table_stoi(t, symbol);
 	tdb_block* block = get_block(t, id, epoch_nanos);
 	if (strlen(t->partition.name) == 0 || epoch_nanos < t->partition.ts_min ||
 		epoch_nanos > t->partition.ts_max) {
-		// Calling strftime for each row is bad perf, so instead compute min/max
-		// ts's for partition
 		struct tm time = nanos_to_tm(epoch_nanos);
 		size_t written = strftime(t->partition.name, TDB_MAX_FMT_LEN,
 								  sdata(t->schema->partition_fmt), &time);
 		if (written == 0) {
 			fprintf(stderr, "partition_fmt longer than %d\n", TDB_MAX_FMT_LEN);
-			exit(EXIT_FAILURE);
+			return 1;
 		}
 
-		t->partition.ts_min = min_partition_ts(t, epoch_nanos);
-		t->partition.ts_max = max_partition_ts(t, epoch_nanos);
-		printf("%s %lu %lu\n", t->partition.name, t->partition.ts_min,
+		// Calling strftime for each row is bad perf, so instead compute min/max
+		// ts's for partition
+		t->partition.ts_min = min_partition_ts(&t->schema->partition_fmt, epoch_nanos);
+		t->partition.ts_max = max_partition_ts(&t->schema->partition_fmt, epoch_nanos);
+		printf("new partition %s min %lu max %lu\n", t->partition.name, t->partition.ts_min,
 			   t->partition.ts_max);
 
 		// Close existing open columns
-		close_columns(t);
+		for_each(col, t->schema->columns)
+			if (col_close(col))
+				return 2;
 	}
 
-	tdb_col* cols = (tdb_col*)t->schema->columns.data;
-	size_t ts_stride = column_stride(t->schema, cols->type);
-	tdb_table_write_data(t, &epoch_nanos, ts_stride);
+	tdb_col* ts_col = t->schema->columns.data;
+	tdb_table_write_data(t, &epoch_nanos, ts_col->stride);
+
+	return 0;
 }
