@@ -2,5 +2,6 @@ DerivePointerAlignment: false
 PointerAlignment: Left
 AllowAllArgumentsOnNextLine: true
 ContinuationIndentWidth: 1
-IndentWidth: 2
-TabWidth: 2
+UseTab: Always
+IndentWidth: 4
+TabWidth: 4

@@ -11,125 +11,120 @@
 #define NANOS_IN_SEC 1000000000L
 
 static struct tm nanos_to_tm(i64 nanos) {
-  struct tm res;
-  nanos /= NANOS_IN_SEC;
-  // TODO: localtime config flag
-  memcpy(&res, gmtime(&nanos), sizeof(struct tm));
-  return res;
+	struct tm res;
+	nanos /= NANOS_IN_SEC;
+	// TODO: localtime config flag
+	memcpy(&res, gmtime(&nanos), sizeof(struct tm));
+	return res;
 }
 
 static size_t column_stride(tdb_schema* s, tdb_coltype type) {
-  switch (type) {
-  case TDB_SYMBOL8:
-  case TDB_INT8:
-  case TDB_UINT8:
-  case TDB_TIMESTAMP8:
-    return 1;
-  case TDB_SYMBOL16:
-  case TDB_INT16:
-  case TDB_UINT16:
-  case TDB_TIMESTAMP16:
-    return 2;
-  case TDB_SYMBOL32:
-  case TDB_INT32:
-  case TDB_UINT32:
-  case TDB_FLOAT:
-  case TDB_TIMESTAMP32:
-    return 4;
-  case TDB_SYMBOL64:
-  case TDB_CURRENCY:
-  case TDB_INT64:
-  case TDB_UINT64:
-  case TDB_DOUBLE:
-  case TDB_TIMESTAMP64:
-    return 8;
-  case TDB_TIMESTAMP:
-    fprintf(
-     stderr,
-     "cannot know stride of TDB_TIMESTAMP. must specify TDB_TIMESTAMP64, "
-     "TDB_TIMESTAMP32, TDB_TIMESTAMP16, or TDB_TIMESTAMP8\n");
-    exit(1);
-  }
+	switch (type) {
+	case TDB_SYMBOL8:
+	case TDB_INT8:
+	case TDB_UINT8:
+	case TDB_TIMESTAMP8:
+		return 1;
+	case TDB_SYMBOL16:
+	case TDB_INT16:
+	case TDB_UINT16:
+	case TDB_TIMESTAMP16:
+		return 2;
+	case TDB_SYMBOL32:
+	case TDB_INT32:
+	case TDB_UINT32:
+	case TDB_FLOAT:
+	case TDB_TIMESTAMP32:
+		return 4;
+	case TDB_SYMBOL64:
+	case TDB_CURRENCY:
+	case TDB_INT64:
+	case TDB_UINT64:
+	case TDB_DOUBLE:
+	case TDB_TIMESTAMP64:
+		return 8;
+	case TDB_TIMESTAMP:
+		fprintf(
+		 stderr,
+		 "cannot know stride of TDB_TIMESTAMP. must specify TDB_TIMESTAMP64, "
+		 "TDB_TIMESTAMP32, TDB_TIMESTAMP16, or TDB_TIMESTAMP8\n");
+		exit(1);
+	}
 }
 
 static const char* column_ext(tdb_table* t, tdb_coltype type) {
-  switch (type) {
-  case TDB_SYMBOL8:
-    return "s8";
-  case TDB_INT8:
-  case TDB_TIMESTAMP8:
-    return "i8";
-  case TDB_UINT8:
-    return "u8";
-  case TDB_SYMBOL16:
-    return "s16";
-  case TDB_INT16:
-  case TDB_TIMESTAMP16:
-    return "i16";
-  case TDB_UINT16:
-    return "u16";
-  case TDB_SYMBOL32:
-    return "s32";
-  case TDB_INT32:
-  case TDB_TIMESTAMP32:
-    return "i32";
-  case TDB_UINT32:
-    return "u32";
-  case TDB_FLOAT:
-    return "f32";
-  case TDB_SYMBOL64:
-    return "s64";
-  case TDB_CURRENCY:
-    return "c64";
-  case TDB_INT64:
-  case TDB_TIMESTAMP64:
-    return "i64";
-  case TDB_UINT64:
-    return "u64";
-  case TDB_DOUBLE:
-    return "f64";
-  case TDB_TIMESTAMP:
-    fprintf(stderr,
-            "cannot know size of TDB_TIMESTAMP. must specify TDB_TIMESTAMP64, "
-            "TDB_TIMESTAMP32, TDB_TIMESTAMP16, or TDB_TIMESTAMP8\n");
-    exit(1);
-  }
+	switch (type) {
+	case TDB_SYMBOL8:
+		return "s8";
+	case TDB_INT8:
+	case TDB_TIMESTAMP8:
+		return "i8";
+	case TDB_UINT8:
+		return "u8";
+	case TDB_SYMBOL16:
+		return "s16";
+	case TDB_INT16:
+	case TDB_TIMESTAMP16:
+		return "i16";
+	case TDB_UINT16:
+		return "u16";
+	case TDB_SYMBOL32:
+		return "s32";
+	case TDB_INT32:
+	case TDB_TIMESTAMP32:
+		return "i32";
+	case TDB_UINT32:
+		return "u32";
+	case TDB_FLOAT:
+		return "f32";
+	case TDB_SYMBOL64:
+		return "s64";
+	case TDB_CURRENCY:
+		return "c64";
+	case TDB_INT64:
+	case TDB_TIMESTAMP64:
+		return "i64";
+	case TDB_UINT64:
+		return "u64";
+	case TDB_DOUBLE:
+		return "f64";
+	case TDB_TIMESTAMP:
+		fprintf(
+		 stderr,
+		 "cannot know size of TDB_TIMESTAMP. must specify TDB_TIMESTAMP64, "
+		 "TDB_TIMESTAMP32, TDB_TIMESTAMP16, or TDB_TIMESTAMP8\n");
+		exit(1);
+	}
 }
 
 static size_t largest_col_size(tdb_schema* s) {
-  size_t res = 1;
-  for_each(col, s->columns) {
-    size_t size = column_stride(s, col->type);
-    if (size > res) {
-      res = size;
-    }
-  }
+	size_t res = 1;
+	for_each(col, s->columns) {
+		size_t size = column_stride(s, col->type);
+		if (size > res) {
+			res = size;
+		}
+	}
 
-  return res;
+	return res;
 }
 
-typedef vec_t(tdb_block) vec_tdb_block;
-
 static tdb_block* get_block(tdb_table* t, i32 symbol, i64 nanos) {
-  vec_tdb_block* blocks = _hm_get(&t->blocks, &symbol);
-  if (blocks == NULL) {
-    vec_tdb_block new_blocks = {0};
-    blocks = hm_put(t->blocks, symbol, new_blocks);
-  }
+	vec_tdb_block* blocks = _hm_get(&t->blocks, &symbol);
+	if (blocks == NULL) {
+		vec_tdb_block new_blocks = {0};
+		blocks = hm_put(t->blocks, symbol, new_blocks);
+	}
 
-  for_each(b, *blocks) {
-    if (nanos >= b->ts_min) {
-      return b;
-    }
-  };
+	for_each(b, *blocks) if (nanos >= b->ts_min) return b;
 
-  tdb_block new_block = {
-   .symbol = symbol,
-   .ts_min = nanos,
-  };
+	tdb_block new_block = {
+	 .symbol = symbol,
+	 .ts_min = nanos,
+	};
 	vec_push_ptr(blocks, &new_block);
 
-  return blocks->data + blocks->len;
+	return blocks->data + blocks->len;
 }
 
 static char* second_fmts[] = {
@@ -166,9 +161,9 @@ static char* day_fmts[] = {
 static char* week_fmts[] = {
  "%V", // ISO 8601 week number (01-53)	34
  "%U", // Week number with the first Sunday as the first day of week one
-       // (00-53)	33
+	   // (00-53)	33
  "%W", // Week number with the first Monday as the first day of week one
-       // (00-53)	34
+	   // (00-53)	34
 };
 
 static char* month_fmts[] = {
@@ -191,131 +186,132 @@ static int days_in_month[] = {
 };
 
 static bool is_leap(int year) {
-  if (year % 400 == 0)
-    return true;
-  else if (year % 100 == 0)
-    return false;
-  else if (year % 4 == 0)
-    return true;
-  return false;
+	if (year % 400 == 0)
+		return true;
+	else if (year % 100 == 0)
+		return false;
+	else if (year % 4 == 0)
+		return true;
+	return false;
 }
 
 static i64 min_format_specifier(string* partition_fmt, struct tm* time) {
-  char* haystack = string_data(partition_fmt);
-  for (int i = 0; i < sizeof(second_fmts) / sizeof(second_fmts[0]); i++)
-    if (strstr(haystack, second_fmts[i]) != NULL)
-      return NANOS_IN_SEC;
+	char* haystack = string_data(partition_fmt);
+	for (int i = 0; i < sizeof(second_fmts) / sizeof(second_fmts[0]); i++)
+		if (strstr(haystack, second_fmts[i]) != NULL)
+			return NANOS_IN_SEC;
 
-  for (int i = 0; i < sizeof(minute_fmts) / sizeof(minute_fmts[0]); i++)
-    if (strstr(haystack, minute_fmts[i]) != NULL)
-      return 60 * NANOS_IN_SEC;
+	for (int i = 0; i < sizeof(minute_fmts) / sizeof(minute_fmts[0]); i++)
+		if (strstr(haystack, minute_fmts[i]) != NULL)
+			return 60 * NANOS_IN_SEC;
 
-  for (int i = 0; i < sizeof(hour_fmts) / sizeof(hour_fmts[0]); i++)
-    if (strstr(haystack, hour_fmts[i]) != NULL)
-      return 60 * 60 * NANOS_IN_SEC;
+	for (int i = 0; i < sizeof(hour_fmts) / sizeof(hour_fmts[0]); i++)
+		if (strstr(haystack, hour_fmts[i]) != NULL)
+			return 60 * 60 * NANOS_IN_SEC;
 
-  if (strstr(haystack, "%p") != NULL) // AM or PM designation
-    return 60 * 60 * 12 * NANOS_IN_SEC;
+	if (strstr(haystack, "%p") != NULL) // AM or PM designation
+		return 60 * 60 * 12 * NANOS_IN_SEC;
 
-  for (int i = 0; i < sizeof(day_fmts) / sizeof(day_fmts[0]); i++)
-    if (strstr(haystack, day_fmts[i]) != NULL)
-      return 60 * 60 * 24 * NANOS_IN_SEC;
+	for (int i = 0; i < sizeof(day_fmts) / sizeof(day_fmts[0]); i++)
+		if (strstr(haystack, day_fmts[i]) != NULL)
+			return 60 * 60 * 24 * NANOS_IN_SEC;
 
-  for (int i = 0; i < sizeof(month_fmts) / sizeof(month_fmts[0]); i++) {
-    if (strstr(haystack, month_fmts[i]) != NULL) {
-      u64 days = days_in_month[time->tm_mon];
-      if (time->tm_mon == 1 && is_leap(time->tm_year)) {
-        days += 1;
-      }
-      return 60 * 60 * 24 * days * NANOS_IN_SEC;
-    }
-  }
+	for (int i = 0; i < sizeof(month_fmts) / sizeof(month_fmts[0]); i++) {
+		if (strstr(haystack, month_fmts[i]) != NULL) {
+			u64 days = days_in_month[time->tm_mon];
+			if (time->tm_mon == 1 && is_leap(time->tm_year)) {
+				days += 1;
+			}
+			return 60 * 60 * 24 * days * NANOS_IN_SEC;
+		}
+	}
 
-  // If these are the highest resolution partition format the user is doing
-  // something wrong...
-  // %z	ISO 8601 offset from UTC in timezone (1 minute=1, 1 hour=100) If
-  // timezone cannot be determined, no characters	+100 %Z	Timezone name or
-  // abbreviation * If timezone cannot be determined, no characters	CDT
-  for (int i = 0; i < sizeof(year_fmts) / sizeof(year_fmts[0]); i++) {
-    if (strstr(haystack, year_fmts[i]) != NULL) {
-      u64 days = 365;
-      if (is_leap(time->tm_year)) {
-        days += 1;
-      }
-      return 60 * 60 * 24 * days * NANOS_IN_SEC;
-    }
-  }
+	// If these are the highest resolution partition format the user is doing
+	// something wrong...
+	// %z	ISO 8601 offset from UTC in timezone (1 minute=1, 1 hour=100) If
+	// timezone cannot be determined, no characters	+100 %Z	Timezone name or
+	// abbreviation * If timezone cannot be determined, no characters	CDT
+	for (int i = 0; i < sizeof(year_fmts) / sizeof(year_fmts[0]); i++) {
+		if (strstr(haystack, year_fmts[i]) != NULL) {
+			u64 days = 365;
+			if (is_leap(time->tm_year)) {
+				days += 1;
+			}
+			return 60 * 60 * 24 * days * NANOS_IN_SEC;
+		}
+	}
 
-  return 0;
+	return 0;
 }
 
 static i64 min_partition_ts(tdb_table* t, i64 epoch_nanos) {
-  struct tm time = nanos_to_tm(epoch_nanos);
-  i64 increment = min_format_specifier(&t->schema->partition_fmt, &time);
-  return epoch_nanos - epoch_nanos % increment;
+	struct tm time = nanos_to_tm(epoch_nanos);
+	i64 increment = min_format_specifier(&t->schema->partition_fmt, &time);
+	return epoch_nanos - epoch_nanos % increment;
 }
 
 static i64 max_partition_ts(tdb_table* t, i64 epoch_nanos) {
-  struct tm time = nanos_to_tm(epoch_nanos);
-  i64 increment = min_format_specifier(&t->schema->partition_fmt, &time);
-  return (epoch_nanos / increment + 1) * increment;
+	struct tm time = nanos_to_tm(epoch_nanos);
+	i64 increment = min_format_specifier(&t->schema->partition_fmt, &time);
+	return (epoch_nanos / increment + 1) * increment;
 }
 
 static void open_column(tdb_table* t, size_t col_num) {
-  tdb_col* cols = (tdb_col*)t->schema->columns.data;
-  tdb_col* col = cols + col_num;
+	tdb_col* cols = (tdb_col*)t->schema->columns.data;
+	tdb_col* col = cols + col_num;
 
-  char col_path[PATH_MAX];
-  size_t col_path_len =
-   snprintf(col_path, PATH_MAX, "data/%s/%s.%s", t->partition.name,
-            sdata(col->name), column_ext(t, col->type));
+	char col_path[PATH_MAX];
+	size_t col_path_len =
+	 snprintf(col_path, PATH_MAX, "data/%s/%s.%s", t->partition.name,
+			  sdata(col->name), column_ext(t, col->type));
 
-  if (col_path_len > PATH_MAX) {
-    fprintf(stderr, "Column file %s is longer than PATH_MAX of %d\n", col_path,
-            PATH_MAX);
-  }
-  printf("open col %s\n", col_path);
+	if (col_path_len > PATH_MAX) {
+		fprintf(stderr, "Column file %s is longer than PATH_MAX of %d\n",
+				col_path, PATH_MAX);
+	}
+	printf("open col %s\n", col_path);
 
-  string builder = string_init("");
-  int last_dir = 0;
-  for (int i = 0; i < col_path_len; i++) {
-    if (col_path[i] == '/') {
-      string_catn(&builder, col_path + last_dir, i - last_dir);
-      if (mkdir(sdata(builder), S_IRWXU | S_IRWXG | S_IRWXO)) {
-        if (errno != EEXIST) {
-          perror(sdata(builder));
-          exit(1);
-        }
-      }
-      last_dir = i;
-    }
-  }
-  string_free(&builder);
+	string builder = string_init("");
+	int last_dir = 0;
+	for (int i = 0; i < col_path_len; i++) {
+		if (col_path[i] == '/') {
+			string_catn(&builder, col_path + last_dir, i - last_dir);
+			if (mkdir(sdata(builder), S_IRWXU | S_IRWXG | S_IRWXO)) {
+				if (errno != EEXIST) {
+					perror(sdata(builder));
+					exit(1);
+				}
+			}
+			last_dir = i;
+		}
+	}
+	string_free(&builder);
 
-  int fd = open(col_path, O_RDWR);
-  if (fd == -1 && errno == ENOENT) {
-    fd = open(col_path, O_CREAT | O_RDWR, S_IRWXU);
-    if (ftruncate(fd, GIGABYTES(1)) != 0) {
-      perror(col_path);
-      exit(1);
-    }
-  }
-  if (fd == -1) {
-    perror(col_path);
-    exit(1);
-  }
+	int fd = open(col_path, O_RDWR);
+	if (fd == -1 && errno == ENOENT) {
+		fd = open(col_path, O_CREAT | O_RDWR, S_IRWXU);
+		if (ftruncate(fd, GIGABYTES(1)) != 0) {
+			perror(col_path);
+			exit(1);
+		}
+	}
+	if (fd == -1) {
+		perror(col_path);
+		exit(1);
+	}
 
-  col->data =
-   mmap(NULL, GIGABYTES(1), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-  if (col->data == MAP_FAILED) {
-    perror(col_path);
-    exit(1);
-  }
+	col->data =
+	 mmap(NULL, GIGABYTES(1), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (col->data == MAP_FAILED) {
+		perror(col_path);
+		exit(1);
+	}
 }
 
 static void close_columns(tdb_table* t) {
-  for_each(col, t->schema->columns) {
-    if (col->data != NULL)
-      munmap(col->data, col->capacity * column_stride(t->schema, col->type));
-  }
+	for_each(col, t->schema->columns) {
+		if (col->data != NULL)
+			munmap(col->data,
+				   col->capacity * column_stride(t->schema, col->type));
+	}
 }
