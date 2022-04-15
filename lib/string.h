@@ -111,3 +111,24 @@ static void string_cat(string* a, const string* b) {
 static void string_catc(string* a, const char* b) {
   string_catn(a, b, strlen(b));
 }
+
+static int string_cmp(string* a, string* b) {
+	size_t asize = string_size(a);
+	size_t bsize = string_size(b);
+	if (asize == bsize)
+		return memcmp(string_data(a), string_data(b), asize);
+
+	return asize - bsize;
+}
+
+#ifdef TEST_STRING
+#include <unistd.h>
+int main(void) {
+	char buffer[10];
+	read(STDIN_FILENO, buffer, 10);
+	string a = string_init(buffer);
+	read(STDIN_FILENO, buffer, 10);
+	string b = string_init(buffer);
+	printf("%d\n", string_cmp(&a, &b) == 0);
+}
+#endif

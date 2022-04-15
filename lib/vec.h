@@ -12,6 +12,8 @@
     size_t len;                                                                \
     size_t cap;                                                                \
   }
+
+// vec_i64 new_blocks = { 0 };
 typedef vec_t(i8) vec_i8;
 typedef vec_t(i16) vec_i16;
 typedef vec_t(i32) vec_i32;
@@ -23,7 +25,6 @@ typedef vec_t(u64) vec_u64;
 typedef vec_t(f32) vec_f32;
 typedef vec_t(f64) vec_f64;
 
-// vec_i64 new_blocks = { 0 };
 #define vec_resize(v, nmemb)                                                   \
   {                                                                            \
     (v)->data = realloc((v)->data, nmemb * sizeof(*(v)->data));                \
@@ -39,12 +40,14 @@ typedef vec_t(f64) vec_f64;
         vec_resize((v), (v)->cap * 2);                                         \
       }                                                                        \
     }                                                                          \
-    typeof((v)->data) dest = (v)->data + (v)->len;                             \
-    memcpy(dest, ptr, sizeof(*(v)->data));                                     \
+    memcpy((v)->data + (v)->len, ptr, sizeof(*(v)->data));                                     \
     (v)->len += 1;                                                             \
   }
 
-#define vec_push(v, val) vec_push_ptr(&v, &(val));
+#define vec_push(v, val) { \
+	typeof(*((v).data)) tmp = val; \
+	vec_push_ptr(&(v), &tmp); \
+}
 
 #define vec_free(v)                                                            \
   {                                                                            \
@@ -54,3 +57,19 @@ typedef vec_t(f64) vec_f64;
 
 #define for_each(i, c)                                                         \
   for (typeof((c).data) i = (c).data; i < (c).data + (c).len; i++)
+
+#ifdef TEST_VEC
+#include <stdio.h>
+int main(void) {
+	vec_i8 v = { 0 };
+	vec_push(v, 1);
+	i32 a = 2;
+	vec_push_ptr(&v, &a);
+	for (i8 i = 3; i < 10; i++) {
+		vec_push(v, i);
+	}
+	for_each(i, v) {
+		printf("%d\n", *i);
+	}
+}
+#endif

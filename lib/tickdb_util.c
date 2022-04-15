@@ -110,11 +110,11 @@ static size_t largest_col_size(tdb_schema* s) {
 
 typedef vec_t(tdb_block) vec_tdb_block;
 
-static tdb_block* get_block(tdb_table* t, i64 symbol, i64 nanos) {
+static tdb_block* get_block(tdb_table* t, i32 symbol, i64 nanos) {
   vec_tdb_block* blocks = _hm_get(&t->blocks, &symbol);
   if (blocks == NULL) {
     vec_tdb_block new_blocks = {0};
-    blocks = hm_put(&t->blocks, symbol, new_blocks);
+    blocks = hm_put(t->blocks, symbol, new_blocks);
   }
 
   for_each(b, *blocks) {
@@ -123,15 +123,11 @@ static tdb_block* get_block(tdb_table* t, i64 symbol, i64 nanos) {
     }
   };
 
-  for (size_t i = 0; i < blocks->len; i++) {
-    tdb_block* b = blocks->data + i;
-  }
-
   tdb_block new_block = {
    .symbol = symbol,
    .ts_min = nanos,
   };
-  vec_push(*blocks, new_block);
+	vec_push_ptr(blocks, &new_block);
 
   return blocks->data + blocks->len;
 }
@@ -255,18 +251,18 @@ static i64 min_format_specifier(string* partition_fmt, struct tm* time) {
 
 static i64 min_partition_ts(tdb_table* t, i64 epoch_nanos) {
   struct tm time = nanos_to_tm(epoch_nanos);
-  i64 increment = min_format_specifier(&t->schema.partition_fmt, &time);
+  i64 increment = min_format_specifier(&t->schema->partition_fmt, &time);
   return epoch_nanos - epoch_nanos % increment;
 }
 
 static i64 max_partition_ts(tdb_table* t, i64 epoch_nanos) {
   struct tm time = nanos_to_tm(epoch_nanos);
-  i64 increment = min_format_specifier(&t->schema.partition_fmt, &time);
+  i64 increment = min_format_specifier(&t->schema->partition_fmt, &time);
   return (epoch_nanos / increment + 1) * increment;
 }
 
 static void open_column(tdb_table* t, size_t col_num) {
-  tdb_col* cols = (tdb_col*)t->schema.columns.data;
+  tdb_col* cols = (tdb_col*)t->schema->columns.data;
   tdb_col* col = cols + col_num;
 
   char col_path[PATH_MAX];
@@ -318,9 +314,8 @@ static void open_column(tdb_table* t, size_t col_num) {
 }
 
 static void close_columns(tdb_table* t) {
-  for_each(col, t->schema.columns) {
+  for_each(col, t->schema->columns) {
     if (col->data != NULL)
-      munmap(col->data, col->capacity * column_stride(&t->schema, col->type));
-    string_free(&col->name);
+      munmap(col->data, col->capacity * column_stride(t->schema, col->type));
   }
 }

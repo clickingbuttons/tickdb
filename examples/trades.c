@@ -65,6 +65,7 @@ int main(void) {
     tdb_table_write_u8(trades, t.exchange);
     tdb_table_write_u8(trades, t.tape);
   }
+  tdb_table_free(trades);
 
   return 0;
 }

@@ -21,16 +21,19 @@ typedef struct tdb_partition {
 typedef vec_t(string) vec_string;
 
 typedef struct tdb_table {
-  tdb_schema schema;
+	// schema must be first element for clever `free`ing
+  tdb_schema* schema;
   size_t largest_col;
   size_t col_index;
   tdb_partition partition;
-  hashmap blocks; // symbol (int): vec<tickdb_block>
   vec_string symbols;
-  hashmap symbol_uids; // symbol (char*): int
+	// TODO: size_t sym_size;
+  hashmap blocks; // symbol (i32): vec<tickdb_block>
+  hashmap symbol_uids; // symbol (char*): i32
 } tdb_table;
 
 tdb_table* tdb_table_init(tdb_schema* s);
+void tdb_table_free(tdb_table* t);
 
 void tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos);
 void tdb_table_write_data(tdb_table* t, void* data, size_t size);
