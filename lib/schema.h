@@ -51,12 +51,15 @@ typedef struct tdb_col {
 	tdb_coltype type;
 	size_t stride;
 
-	// Internal
-	char path[PATH_MAX];
+	// Internal - data
+	string path;
 	int fd;
 	char* data;
 	size_t capacity;
 	size_t len;
+	// Internal - symbol files
+	string path_symbol;
+	FILE* fd_sym;
 } tdb_col;
 
 typedef vec_t(tdb_col) vec_tdb_col;

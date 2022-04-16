@@ -55,7 +55,7 @@ int main(void) {
 		if (i % 1000000 == 0) {
 			printf("%d %s\n", i, t.sym);
 		}
-		tdb_table_write(trades, t.sym, t.ts);
+		if (tdb_table_write(trades, t.sym, t.ts)) exit(1);
 		tdb_table_write_i64(trades, t.ts_participant);
 		tdb_table_write_u64(trades, t.id);
 		tdb_table_write_u64(trades, t.seq_id);
@@ -66,7 +66,7 @@ int main(void) {
 		tdb_table_write_u8(trades, t.exchange);
 		tdb_table_write_u8(trades, t.tape);
 	}
-	tdb_table_free(trades);
+	if (tdb_table_close(trades)) exit(1);
 
 	return 0;
 }

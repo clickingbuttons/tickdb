@@ -34,13 +34,13 @@ typedef struct tdb_table {
 } tdb_table;
 
 API tdb_table* tdb_table_init(tdb_schema* s);
-API void tdb_table_free(tdb_table* t);
+API i32 tdb_table_close(tdb_table* t);
 
 API i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos);
 API i32 tdb_table_write_data(tdb_table* t, void* data, size_t size);
 #define register_writer(ty)                                                    \
-	static void tdb_table_write_##ty(tdb_table* table, ty value) {             \
-		tdb_table_write_data(table, &value, sizeof(ty));                       \
+	static i32 tdb_table_write_##ty(tdb_table* table, ty value) {             \
+		return tdb_table_write_data(table, &value, sizeof(ty));                       \
 	}
 register_writer(i8);
 register_writer(i16);

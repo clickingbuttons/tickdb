@@ -60,6 +60,8 @@ tdb_schema* tdb_schema_init(char* name, char* partition_fmt,
 	 .type = ts_type,
 	 .stride = column_stride(ts_type),
 	 .capacity = COL_DEFAULT_CAP,
+	 .path = string_empty,
+	 .path_symbol = string_empty,
 	};
 	vec_push(res->columns, ts);
 
@@ -72,6 +74,8 @@ void tdb_schema_add(tdb_schema* s, tdb_coltype type, char* name) {
 	 .type = type,
 	 .stride = column_stride(type),
 	 .capacity = COL_DEFAULT_CAP,
+	 .path = string_empty,
+	 .path_symbol = string_empty,
 	};
 
 	vec_push(s->columns, col);
@@ -82,7 +86,11 @@ void tdb_schema_free(tdb_schema* s) {
 	string_free(&s->ts_name);
 	string_free(&s->partition_fmt);
 	string_free(&s->sym_universe);
-	for_each(col, s->columns) { string_free(&col->name); }
+	for_each(col, s->columns) {
+		string_free(&col->name);
+		string_free(&col->path);
+		string_free(&col->path_symbol);
+	}
 	vec_free(&s->columns);
 	free(s);
 }
