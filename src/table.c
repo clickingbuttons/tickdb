@@ -1,5 +1,5 @@
+#include "table.h"
 #include "column.h"
-#include "tickdb.h"
 
 #define MIN_BLOCK_SIZE KIBIBYTES(64)
 
@@ -18,6 +18,15 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 	res->schema = s;
 	res->largest_col = max_col_stride(s);
 	res->blocks = hm_init(i32, vec_tdb_block);
+
+	string_printf(&res->symbol_path, "data/%p/%p.%s", &s->name,
+				  &s->sym_universe, column_ext(s->sym_type));
+  mkdirp(sdata(res->symbol_path));
+	res->symbol_file = fopen(sdata(res->symbol_path), "a");
+	if (res->symbol_file == NULL) {
+		TDB_ERRF_SYS("open symbol file %s", sdata(res->symbol_path));
+		return NULL;
+	}
 	res->symbol_uids = hm_init(string, i32);
 	res->symbol_uids.equals = hm_string_equals;
 	res->symbol_uids.hasher = hm_string_hash;
@@ -26,13 +35,13 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 }
 
 i32 tdb_table_close(tdb_table* t) {
-	for_each(col, t->schema->columns)
-		if (col_close(col))
-			return 1;
+	for_each(col, t->schema->columns) if (col_close(col)) return 1;
 	tdb_schema_free(t->schema);
 
 	hm_iter(&t->blocks) vec_free((vec_tdb_block*)val);
 	hm_free(&t->blocks);
+	string_free(&t->symbol_path);
+	fclose(t->symbol_file);
 	vec_free(&t->symbols);
 	hm_free(&t->symbol_uids);
 	free(t);
@@ -40,15 +49,18 @@ i32 tdb_table_close(tdb_table* t) {
 	return 0;
 }
 
-void tdb_write_sym(tdb_table* t, char* symbol) {
+void tdb_write_sym(tdb_table* t, string* symbol, size_t sym_num) {
+	if (sym_num != 0)
+		fwrite("\n", 1, 1, t->symbol_file);
+	fwrite(string_data(symbol), string_len(symbol), 1, t->symbol_file);
 }
 
 i32 tdb_table_stoi(tdb_table* t, char* symbol) {
 	string s = string_init(symbol);
 	i32* sym = _hm_get(&t->symbol_uids, &s);
 	if (sym == NULL) {
+		tdb_write_sym(t, &s, t->symbols.len);
 		vec_push_ptr(&t->symbols, &s);
-		tdb_write_sym(t, symbol);
 		sym = (i32*)_hm_put(&t->symbol_uids, &s, &t->symbols.len);
 	}
 	string_free(&s);
@@ -93,10 +105,12 @@ i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
 
 		// Calling strftime for each row is bad perf, so instead compute min/max
 		// ts's for partition
-		t->partition.ts_min = min_partition_ts(&t->schema->partition_fmt, epoch_nanos);
-		t->partition.ts_max = max_partition_ts(&t->schema->partition_fmt, epoch_nanos);
-		printf("new partition %s min %lu max %lu\n", t->partition.name, t->partition.ts_min,
-			   t->partition.ts_max);
+		t->partition.ts_min =
+		 min_partition_ts(&t->schema->partition_fmt, epoch_nanos);
+		t->partition.ts_max =
+		 max_partition_ts(&t->schema->partition_fmt, epoch_nanos);
+		printf("new partition %s min %lu max %lu\n", t->partition.name,
+			   t->partition.ts_min, t->partition.ts_max);
 
 		// Open new columns
 		for_each(col, t->schema->columns) {

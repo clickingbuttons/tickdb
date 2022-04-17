@@ -1,4 +1,4 @@
-#include "../lib/inttypes.h"
+#include "../lib/util/inttypes.h"
 #include "../lib/tickdb.h"
 
 #include <stdlib.h>
@@ -46,16 +46,20 @@ int main(void) {
 	tdb_schema_add(s, TDB_UINT8, "tape");
 
 	tdb_table* trades = tdb_table_init(s);
+	if (trades == NULL) {
+		exit(1);
+	}
 
 	int num_trades = 10000000;
 	trade t;
 	for (int i = 1; i <= num_trades; i++) {
 		generate_trade(&t);
-		//w;printf("i %d\n", i);
+		// w;printf("i %d\n", i);
 		if (i % 1000000 == 0) {
 			printf("%d %s\n", i, t.sym);
 		}
-		if (tdb_table_write(trades, t.sym, t.ts)) exit(1);
+		if (tdb_table_write(trades, t.sym, t.ts))
+			exit(1);
 		tdb_table_write_i64(trades, t.ts_participant);
 		tdb_table_write_u64(trades, t.id);
 		tdb_table_write_u64(trades, t.seq_id);
@@ -66,7 +70,8 @@ int main(void) {
 		tdb_table_write_u8(trades, t.exchange);
 		tdb_table_write_u8(trades, t.tape);
 	}
-	if (tdb_table_close(trades)) exit(1);
+	if (tdb_table_close(trades))
+		exit(1);
 
 	return 0;
 }

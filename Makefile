@@ -3,11 +3,11 @@ LIB=tickdb
 LIBSO := lib$(LIB).so
 
 BUILD_DIR ?= ./build
-SRC_DIR ?= ./lib
+SRC_DIR ?= ./src
 LDFLAGS ?= -shared
 CFLAGS += -std=gnu11 -g -fpic -fvisibility=hidden -O3
 
-SRCS := $(wildcard lib/*.c)
+SRCS := $(wildcard $(SRC_DIR)/*.c $(SRC_DIR)/util/*.c)
 OBJS := $(SRCS:%=$(BUILD_DIR)/obj/%.o)
 
 $(BUILD_DIR)/$(LIBSO): $(OBJS)

@@ -1,11 +1,11 @@
 #pragma once
 #include "inttypes.h"
 #include "wyhash.h"
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
 
 // Thanks izabera: https://github.com/izabera/s/blob/master/LICENSE
 
@@ -14,9 +14,8 @@ typedef union string {
 	char _data[16];
 
 	struct {
-		u8 filler1[15],
-		 space_left : 4,
-	 	 // use the last byte as a null terminator and to store flags
+		u8 filler1[15], space_left : 4,
+		 // use the last byte as a null terminator and to store flags
 		 is_pointer : 1, flag1 : 1, flag2 : 1, flag3 : 1;
 	};
 
@@ -51,7 +50,8 @@ static string string_initn(char* s, size_t size) {
 	return res;
 }
 
-#define string_empty (string) { .space_left = 15 }
+#define string_empty                                                           \
+	(string) { .space_left = 15 }
 
 static string string_init(char* s) { return string_initn(s, strlen(s)); }
 
@@ -135,54 +135,60 @@ static bool string_equals(const string* s1, const string* s2) {
 }
 
 // %p = *string
-__attribute__((format(printf, 2, 3)))
-static void string_printf(string* dest, const char* format, ...) {
-  va_list argp;
-  va_start(argp, format);
-  while (*format) {
-    if (*format == '%') {
-      format++;
-			switch(*format) {
-				case '%':
-					string_catn(dest, "%", 1);
-					break;
-				case 's': {
-					const char* s = va_arg(argp, char*);
-					string_catc(dest, s);
-					break;
-				}
-				case 'p': {
-					string* s = va_arg(argp, string*);
-					string_cat(dest, s);
-					break;
-				}
+__attribute__((format(printf, 2, 3))) static void
+string_printf(string* dest, const char* format, ...) {
+	*dest = string_empty;
+	va_list argp;
+	va_start(argp, format);
+	while (*format) {
+		if (*format == '%') {
+			format++;
+			switch (*format) {
+			case '%':
+				string_catn(dest, "%", 1);
+				break;
+			case 's': {
+				const char* s = va_arg(argp, char*);
+				string_catc(dest, s);
+				break;
 			}
-    } else {
+			case 'p': {
+				string* s = va_arg(argp, string*);
+				string_cat(dest, s);
+				break;
+			}
+			}
+		} else {
 			string_catn(dest, format, 1);
-    }
-    format++;
-  }
-  va_end(argp);
+		}
+		format++;
+	}
+	va_end(argp);
 }
 
 // this leaks if the string is too long but it's very handy for short strings
 // "" causes a compile time error if x is not a string literal or too long
-// _Static_assert is a declaration, not an expression.  fizzie came up with this hack
-#define string_tmp(x) ({\
-  (void)((struct { _Static_assert(sizeof x <= 16, "it's too big"); int dummy; }){1}); \
-	string tmp = string_init(x); \
-	&tmp; \
-})
+// _Static_assert is a declaration, not an expression.  fizzie came up with this
+// hack
+#define string_tmp(x)                                                          \
+	({                                                                         \
+		(void)((struct {                                                       \
+			_Static_assert(sizeof x <= 16, "it's too big");                    \
+			int dummy;                                                         \
+		}){1});                                                                \
+		string tmp = string_init(x);                                           \
+		&tmp;                                                                  \
+	})
 
 #ifdef TEST_STRING
 #include <unistd.h>
 int main(void) {
-	//char buffer[10];
-	//read(STDIN_FILENO, buffer, 10);
-	//string a = string_init(buffer);
-	//read(STDIN_FILENO, buffer, 10);
-	//string b = string_init(buffer);
-	//printf("%d\n", string_cmp(&a, &b));
+	// char buffer[10];
+	// read(STDIN_FILENO, buffer, 10);
+	// string a = string_init(buffer);
+	// read(STDIN_FILENO, buffer, 10);
+	// string b = string_init(buffer);
+	// printf("%d\n", string_cmp(&a, &b));
 
 	string a = string_empty;
 	string_catn(&a, "asdf", 4);

@@ -134,4 +134,3 @@ i64 max_partition_ts(string* partition_fmt, i64 epoch_nanos) {
 	i64 increment = min_format_specifier(partition_fmt, &time);
 	return (epoch_nanos / increment + 1) * increment;
 }
-

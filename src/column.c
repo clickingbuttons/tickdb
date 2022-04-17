@@ -1,11 +1,10 @@
 #include "column.h"
 
-#include <errno.h>
-#include <fcntl.h> // open
-#include <unistd.h> // ftruncate
+#include <fcntl.h>		  // open
 #include <linux/limits.h> // PATH_MAX
-#include <sys/mman.h> // mmap, munmap, mremap
-#include <sys/stat.h> // mkdir
+#include <sys/mman.h>	  // mmap, munmap, mremap
+#include <sys/stat.h>	  // mkdir
+#include <unistd.h>		  // ftruncate
 
 i32 mkdirp(const char* path) {
 	string builder = string_empty;
@@ -46,9 +45,11 @@ i32 col_grow(tdb_col* col, size_t newcap) {
 	}
 
 	if (col->data == NULL)
-		col->data = mmap(NULL, fsize, PROT_READ | PROT_WRITE, MAP_PRIVATE, col->fd, 0);
+		col->data =
+		 mmap(NULL, fsize, PROT_READ | PROT_WRITE, MAP_PRIVATE, col->fd, 0);
 	else
-		col->data = mremap(col->data, col->capacity * col->stride, fsize, MREMAP_MAYMOVE);
+		col->data =
+		 mremap(col->data, col->capacity * col->stride, fsize, MREMAP_MAYMOVE);
 	if (col->data == MAP_FAILED) {
 		TDB_ERRF_SYS("mmap %s", sdata(col->path));
 		return 1;
@@ -59,15 +60,17 @@ i32 col_grow(tdb_col* col, size_t newcap) {
 }
 
 i32 col_open(tdb_col* col, string* table_name, const char* partition) {
-	string_printf(&col->path, "data/%p/%s/%p.%s", table_name, partition, &col->name, column_ext(col->type));
-	//printf("open %s %s\n", sdata(col->name), sdata(col->path));
+	string_printf(&col->path, "data/%p/%s/%p.%s", table_name, partition,
+				  &col->name, column_ext(col->type));
+	// printf("open %s %s\n", sdata(col->name), sdata(col->path));
 	if (string_len(&col->path) > PATH_MAX) {
 		TDB_ERRF("Column file %s is longer than PATH_MAX of %d\n",
-				sdata(col->path), PATH_MAX);
+				 sdata(col->path), PATH_MAX);
 		return 1;
 	}
 
-	if (mkdirp(sdata(col->path))) return 1;
+	if (mkdirp(sdata(col->path)))
+		return 1;
 
 	int fd = open(sdata(col->path), O_RDWR);
 	if (fd == -1 && errno == ENOENT)
@@ -77,14 +80,16 @@ i32 col_open(tdb_col* col, string* table_name, const char* partition) {
 		return 1;
 	}
 	col->fd = fd;
-	if(col_grow(col, col->capacity)) return 1;
+	if (col_grow(col, col->capacity))
+		return 1;
 
 	// TODO: sym column support
 	return 0;
 }
 
 i32 col_close(tdb_col* col) {
-	if (col_unmap(col)) return 1;
+	if (col_unmap(col))
+		return 1;
 	if (col->fd && close(col->fd)) {
 		TDB_ERRF_SYS("close %s", sdata(col->path));
 		return 1;
