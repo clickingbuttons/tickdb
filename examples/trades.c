@@ -1,7 +1,15 @@
 #include "../src/tickdb.h"
 #include "../src/util/inttypes.h"
 
+#include <signal.h>
 #include <stdlib.h>
+
+static volatile sig_atomic_t keep_running = 1;
+
+static void sig_handler(int _) {
+	(void)_;
+	keep_running = 0;
+}
 
 typedef struct trade {
 	int64_t ts;
@@ -33,6 +41,8 @@ void generate_trade(trade* trade) {
 }
 
 int main(void) {
+	signal(SIGINT, sig_handler);
+
 	tdb_schema* s =
 	 tdb_schema_init("trades", "%Y/%m/%d", TDB_SYMBOL16, "us_equities");
 	tdb_schema_add(s, TDB_TIMESTAMP64, "ts_participant");
@@ -52,7 +62,7 @@ int main(void) {
 
 	int num_trades = 10000000;
 	trade t;
-	for (int i = 1; i <= num_trades; i++) {
+	for (int i = 1; keep_running && i <= num_trades; i++) {
 		generate_trade(&t);
 		// w;printf("i %d\n", i);
 		if (i % 1000000 == 0) {

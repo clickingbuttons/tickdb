@@ -46,7 +46,7 @@ typedef vec_t(f64) vec_f64;
 
 #define vec_push(v, val)                                                       \
 	{                                                                          \
-		typeof(*((v).data)) tmp = val;                                         \
+		typeof(*((v).data)) tmp = (val);                                         \
 		vec_push_ptr(&(v), &tmp);                                              \
 	}
 

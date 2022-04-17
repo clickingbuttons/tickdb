@@ -56,6 +56,7 @@ API void tdb_schema_add(tdb_schema* schema, tdb_coltype type,
 API void tdb_schema_free(tdb_schema* s);
 
 // Internal
+i64 min_col_stride(tdb_schema* s);
 i64 max_col_stride(tdb_schema* s);
 i64 column_stride(tdb_coltype type);
 const char* column_ext(tdb_coltype type);

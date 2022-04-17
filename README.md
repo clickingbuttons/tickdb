@@ -32,6 +32,10 @@ Column types:
   - Int16 = 65,536 values/frequency
   - Int32 = 4,294,967,296 values/frequency
   - Int64 = 18,446,744,073,709,551,616 values/frequency
+- Symbol (required)
+  - UInt8 = 255 symbols
+  - UInt16 = 65,535 symbols
+  - UInt32 = 4,294,967,295 symbols
 - Int8
 - Int16
 - Int32
@@ -43,11 +47,6 @@ Column types:
 - Float32
 - Float64
   - Good for prices when don't need big integers to store large precisions
-- Symbol (required)
-  - UInt8 = 255 symbols
-  - UInt16 = 65,535 symbols
-  - UInt32 = 4,294,967,295 symbols
-  - UInt64 = 18,446,744,073,709,551,615 symbols
 
 ## New server
 

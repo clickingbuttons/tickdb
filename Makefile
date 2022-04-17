@@ -29,5 +29,6 @@ examples: $(BUILD_DIR)/$(LIBSO)
 
 .PHONY: test
 test: examples
+	$(RM) -rf data
 	perf stat ./build/examples/trades
 

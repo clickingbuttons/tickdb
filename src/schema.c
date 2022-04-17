@@ -130,9 +130,20 @@ const char* column_ext(tdb_coltype type) {
 	}
 }
 
+i64 min_col_stride(tdb_schema* s) {
+	i64 res = SIZE_MAX;
+	for_each(col, s->columns)
+		if (col->stride < res)
+			res = col->stride;
+
+	return res;
+}
+
 i64 max_col_stride(tdb_schema* s) {
 	i64 res = 1;
-	for_each(col, s->columns) if (col->stride > res) res = col->stride;
+	for_each(col, s->columns)
+		if (col->stride > res)
+			res = col->stride;
 
 	return res;
 }

@@ -3,19 +3,17 @@
 #include "schema.h"
 #include "util/hashmap.h"
 
-#define TDB_MAX_FMT_LEN 64
-
 typedef struct tdb_block {
-	i64 symbol;
+	i32 symbol;
+	i32 n_rows;
 	i64 ts_min;
-	i64 n_rows;
-	i64 offset;
+	i64 num;
 } tdb_block;
 
 typedef struct tdb_partition {
 	i64 ts_min;
 	i64 ts_max;
-	char name[TDB_MAX_FMT_LEN];
+	string name;
 } tdb_partition;
 
 typedef vec_t(string) vec_string;
@@ -24,15 +22,18 @@ typedef vec_t(tdb_block) vec_tdb_block;
 typedef struct tdb_table {
 	// schema must be first element for clever `free`ing
 	tdb_schema* schema;
-	i64 largest_col;
-	i64 col_index;
+	size_t min_col_stride;
 	tdb_partition partition;
+	string data_path;
+	hashmap blocks;		 // symbol (i32): vec_tickdb_block
+	string block_path;
+	FILE* block_file;
 	string symbol_path;
 	FILE* symbol_file;
 	vec_string symbols;
-	// TODO: i64 sym_size;
-	hashmap blocks;		 // symbol (i32): vec_tickdb_block
 	hashmap symbol_uids; // symbol (char*): i32
+	tdb_block* block;
+	size_t col_index;
 } tdb_table;
 
 API tdb_table* tdb_table_init(tdb_schema* s);
