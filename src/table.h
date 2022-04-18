@@ -5,15 +5,16 @@
 
 typedef struct tdb_block {
 	i32 symbol;
-	i32 n_rows;
+	i32 len;
 	i64 ts_min;
-	i64 num;
+	i64 num; // offset into file
 } tdb_block;
 
 typedef struct tdb_partition {
 	i64 ts_min;
 	i64 ts_max;
 	string name;
+	i64 num_blocks;
 } tdb_partition;
 
 typedef vec_t(string) vec_string;
@@ -22,10 +23,9 @@ typedef vec_t(tdb_block) vec_tdb_block;
 typedef struct tdb_table {
 	// schema must be first element for clever `free`ing
 	tdb_schema* schema;
-	size_t min_col_stride;
 	tdb_partition partition;
 	string data_path;
-	hashmap blocks;		 // symbol (i32): vec_tickdb_block
+	hashmap blocks; // symbol (i32): vec_tickdb_block
 	string block_path;
 	FILE* block_file;
 	string symbol_path;

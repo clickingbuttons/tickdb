@@ -34,6 +34,7 @@ typedef struct tdb_col {
 	i64 stride;
 
 	vec_mmap data;
+	i64 block_size;
 } tdb_col;
 
 typedef vec_t(tdb_col) vec_tdb_col;

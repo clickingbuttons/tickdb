@@ -1,4 +1,3 @@
-CC=clang
 LIB=tickdb
 LIBSO := lib$(LIB).so
 

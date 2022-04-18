@@ -65,9 +65,8 @@ int main(void) {
 	for (int i = 1; keep_running && i <= num_trades; i++) {
 		generate_trade(&t);
 		// w;printf("i %d\n", i);
-		if (i % 1000000 == 0) {
+		if (i % 1000000 == 0)
 			printf("%d %s\n", i, t.sym);
-		}
 		if (tdb_table_write(trades, t.sym, t.ts))
 			exit(1);
 		tdb_table_write_i64(trades, t.ts_participant);

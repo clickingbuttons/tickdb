@@ -1,5 +1,8 @@
 #include "schema.h"
 
+#define MIN_BLOCK_SIZE KIBIBYTES(16)
+#define COL_DEFAULT_SIZE MEBIBYTES(250)
+
 i64 column_stride(tdb_coltype type) {
 	switch (type) {
 	case TDB_SYMBOL8:
@@ -52,11 +55,12 @@ tdb_schema* tdb_schema_init(char* name, char* partition_fmt,
 	// >>> math.log2(24*60*60*10000) .1ms
 	// 29.686456071487644
 	tdb_coltype ts_type = TDB_TIMESTAMP64;
-	tdb_col ts = {
-	 .name = string_init("ts"),
-	 .type = ts_type,
-	 .stride = column_stride(ts_type),
-	};
+
+	size_t col_stride = column_stride(ts_type);
+	tdb_col ts = {.name = string_init("ts"),
+				  .type = ts_type,
+				  .stride = col_stride,
+				  .block_size = MIN_BLOCK_SIZE << (col_stride - 1)};
 	vec_push(res->columns, ts);
 
 	return res;

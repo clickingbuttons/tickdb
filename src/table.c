@@ -19,7 +19,6 @@ static bool hm_string_equals(const void* key1, const void* key2, void* _) {
 tdb_table* tdb_table_init(tdb_schema* s) {
 	tdb_table* res = calloc(sizeof(tdb_table), 1);
 	res->schema = s;
-	res->min_col_stride = min_col_stride(s);
 	res->blocks = hm_init(i32, vec_tdb_block);
 	res->partition.name = string_empty;
 	string_printf(&res->data_path, "data/%p", &s->name);
@@ -41,12 +40,26 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 	return res;
 }
 
-i32 close_block(tdb_table* t) {
-	if (t->block_file != NULL) {
-		if (fclose(t->block_file)) {
-			TDB_ERRF_SYS("fclose %s", sdata(t->block_path));
-			return 1;
+// TODO: mmap vec_tdb_block to file
+static void tdb_write_blocks(tdb_table* t) {
+	fprintf(t->block_file, "%s", "sym,ts_min,num,len");
+	hm_iter(&t->blocks) {
+		for_each(b, *(vec_tdb_block*)val) {
+			fwrite("\n", 1, 1, t->block_file);
+			fprintf(t->block_file, "%d,%ld,%ld,%d", b->symbol, b->ts_min,
+					b->num, b->len);
 		}
+	}
+}
+
+i32 close_block(tdb_table* t) {
+	if (t->block_file == NULL)
+		return 0;
+
+	tdb_write_blocks(t);
+	if (fclose(t->block_file)) {
+		TDB_ERRF_SYS("fclose %s", sdata(t->block_path));
+		return 1;
 	}
 
 	return 0;
@@ -75,15 +88,6 @@ static void tdb_write_sym(tdb_table* t, string* symbol, size_t sym_num) {
 	fwrite(string_data(symbol), string_len(symbol), 1, t->symbol_file);
 }
 
-static void tdb_write_block(tdb_table* t, tdb_block* b) {
-	if (t->blocks.len == 1)
-		fwrite("sym,ts_min,offset,n_rows", 1, 1, t->block_file);
-	fwrite("\n", 1, 1, t->block_file);
-	fprintf(t->block_file, "%d,%ld,%ld,%d", b->symbol, b->ts_min, b->num,
-			b->n_rows);
-	// fwrite(b, sizeof(*b), 1, t->block_file);
-}
-
 i32 tdb_table_stoi(tdb_table* t, char* symbol) {
 	string s = string_init(symbol);
 	i32* sym = _hm_get(&t->symbol_uids, &s);
@@ -109,8 +113,8 @@ static tdb_block* get_block(tdb_table* t, i32 symbol, i64 nanos) {
 	}
 
 	for_each(b, *blocks) {
-		if (nanos >= b->ts_min && b->n_rows * t->min_col_stride < MIN_BLOCK_SIZE) {
-			b->n_rows += 1;
+		if (nanos >= b->ts_min && b->len < MIN_BLOCK_SIZE) {
+			b->len += 1;
 			return b;
 		}
 	}
@@ -118,12 +122,11 @@ static tdb_block* get_block(tdb_table* t, i32 symbol, i64 nanos) {
 	tdb_block new_block = {
 	 .symbol = symbol,
 	 .ts_min = nanos,
-	 .num = blocks->len,
-	 .n_rows = 1,
+	 .num = t->partition.num_blocks++,
 	};
 	vec_push_ptr(blocks, &new_block);
 
-	return blocks->data + blocks->len;
+	return blocks->data + blocks->len - 1;
 }
 
 static bool is_old_partition(tdb_partition* p, i64 epoch_nanos) {
@@ -183,14 +186,25 @@ i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
 	return 0;
 }
 
+static inline char* get_dest(tdb_block* block, tdb_col* col) {
+	off_t offset = (block->num * col->block_size) + (block->len * col->stride);
+	char* res = col->data.data + offset;
+	// printf("n %lu l %d p %p off %lu res %p\n", block->num, block->len,
+	// col->data, offset, res);
+
+	return res;
+}
+
 i32 tdb_table_write_data(tdb_table* t, void* data, i64 size) {
 	tdb_col* col = (tdb_col*)t->schema->columns.data + t->col_index;
-	vec_mmap* vec_mmap = &col->data;
-	if (vec_mmap->len + 1 > vec_mmap->capacity)
-		vec_mmap_grow(vec_mmap);
-	memcpy(vec_mmap->data + vec_mmap->len * col->stride, data, size);
-	vec_mmap->len += 1;
-	t->col_index = (t->col_index + 1) % t->schema->columns.len;
 
+	char* dest = get_dest(t->block, col);
+	if (dest + col->stride > col->data.data + col->data.capacity * col->data.stride) {
+		vec_mmap_grow(&col->data);
+		dest = get_dest(t->block, col);
+	}
+	memcpy(dest, data, size);
+
+	t->col_index = (t->col_index + 1) % t->schema->columns.len;
 	return 0;
 }
