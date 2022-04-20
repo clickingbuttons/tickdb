@@ -172,7 +172,7 @@ i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
       string path = string_empty;
 			string_printf(&path, "data/%p/%p/%p.%s", &t->schema->name,
 						  &t->partition.name, &col->name, column_ext(col->type));
-			if (vec_mmap_open(&col->data, sdata(path), COL_DEFAULT_CAP,
+			if (vec_mmap_open(&col->data, sdata(path), COL_DEFAULT_CAP *
 							  col->stride))
 				return 3;
       string_free(&path);
@@ -199,7 +199,7 @@ i32 tdb_table_write_data(tdb_table* t, void* data, i64 size) {
 	tdb_col* col = (tdb_col*)t->schema->columns.data + t->col_index;
 
 	char* dest = get_dest(t->block, col);
-	if (dest + col->stride > col->data.data + col->data.capacity * col->data.stride) {
+	if (dest + col->stride > col->data.data + col->data.size) {
 		vec_mmap_grow(&col->data);
 		dest = get_dest(t->block, col);
 	}

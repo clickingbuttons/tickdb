@@ -29,7 +29,7 @@ i32 mkdirp(const char* path) {
 }
 
 i32 vec_mmap_unmap(vec_mmap* v) {
-	if (v->data != NULL && munmap(v->data, v->capacity * v->stride)) {
+	if (v->data != NULL && munmap(v->data, v->size)) {
 		TDB_ERRF_SYS("munmap %s", sdata(v->path));
 		return 1;
 	}
@@ -39,7 +39,7 @@ i32 vec_mmap_unmap(vec_mmap* v) {
 }
 
 i32 vec_mmap_grow(vec_mmap* v) {
-	i64 fsize = v->capacity * 2 * v->stride;
+	i64 fsize = v->size * 2;
 	if (ftruncate(v->fd, fsize) != 0) {
 		TDB_ERRF_SYS("ftruncate %s", sdata(v->path));
 		return 1;
@@ -50,22 +50,19 @@ i32 vec_mmap_grow(vec_mmap* v) {
 							  v->fd, 0);
 	else
 		v->data =
-		 (char*)mremap(v->data, v->capacity * v->stride, fsize, MREMAP_MAYMOVE);
+		 (char*)mremap(v->data, v->size, fsize, MREMAP_MAYMOVE);
 	if (v->data == MAP_FAILED) {
 		TDB_ERRF_SYS("mmap %s", sdata(v->path));
 		return 1;
 	}
-	v->capacity = v->capacity * 2;
+	v->size *= 2;
 
 	return 0;
 }
 
-i32 vec_mmap_open(vec_mmap* v, const char* path, i64 capacity, i64 stride) {
+i32 vec_mmap_open(vec_mmap* v, const char* path, i64 size) {
 	v->path = string_init(path);
-	v->capacity = capacity;
-	v->len = 0;
-	v->stride = stride;
-  v->fd = 0;
+	v->size = size;
 	if (string_len(&v->path) > PATH_MAX) {
 		TDB_ERRF("file %s is longer than PATH_MAX of %d\n", sdata(v->path),
 				 PATH_MAX);
