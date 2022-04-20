@@ -1,8 +1,6 @@
 #include "schema.h"
 
-#define COL_DEFAULT_CAP 10000000
-
-size_t column_stride(tdb_coltype type) {
+i64 column_stride(tdb_coltype type) {
 	switch (type) {
 	case TDB_SYMBOL8:
 	case TDB_INT8:
@@ -58,7 +56,6 @@ tdb_schema* tdb_schema_init(char* name, char* partition_fmt,
 	 .name = string_init("ts"),
 	 .type = ts_type,
 	 .stride = column_stride(ts_type),
-	 .capacity = COL_DEFAULT_CAP,
 	};
 	vec_push(res->columns, ts);
 
@@ -70,7 +67,6 @@ void tdb_schema_add(tdb_schema* s, tdb_coltype type, char* name) {
 	 .name = string_init(name),
 	 .type = type,
 	 .stride = column_stride(type),
-	 .capacity = COL_DEFAULT_CAP,
 	};
 
 	vec_push(s->columns, col);
@@ -83,7 +79,7 @@ void tdb_schema_free(tdb_schema* s) {
 	string_free(&s->sym_universe);
 	for_each(col, s->columns) {
 		string_free(&col->name);
-		string_free(&col->path);
+    vec_mmap_close(&col->data);
 	}
 	vec_free(&s->columns);
 	free(s);
@@ -134,12 +130,11 @@ const char* column_ext(tdb_coltype type) {
 	}
 }
 
-size_t max_col_stride(tdb_schema* s) {
-	size_t res = 1;
-	for_each(col, s->columns) {
+i64 max_col_stride(tdb_schema* s) {
+	i64 res = 1;
+	for_each(col, s->columns)
 		if (col->stride > res)
 			res = col->stride;
-	}
 
 	return res;
 }

@@ -1,6 +1,7 @@
 #include "table.h"
-#include "column.h"
+#include "util/time.h"
 
+#define COL_DEFAULT_CAP 10000000
 #define MIN_BLOCK_SIZE KIBIBYTES(64)
 
 static u64 hm_string_hash(const void* key, size_t _, void* __) {
@@ -35,7 +36,10 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 }
 
 i32 tdb_table_close(tdb_table* t) {
-	for_each(col, t->schema->columns) if (col_close(col)) return 1;
+	for_each(col, t->schema->columns) {
+    string_free(&col->name);
+    if (vec_mmap_close(&col->data)) return 1;
+  }
 	tdb_schema_free(t->schema);
 
 	hm_iter(&t->blocks) vec_free((vec_tdb_block*)val);
@@ -114,9 +118,11 @@ i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
 
 		// Open new columns
 		for_each(col, t->schema->columns) {
-			if (col_close(col))
+			if (vec_mmap_close(&col->data))
 				return 2;
-			if (col_open(col, &t->schema->name, t->partition.name))
+      string_printf(&col->data.path, "data/%p/%s/%p.%s", &t->schema->name, t->partition.name,
+				  &col->name, column_ext(col->type));
+			if (vec_mmap_open(&col->data, &col->data.path, COL_DEFAULT_CAP, col->stride))
 				return 3;
 		}
 	}
@@ -127,12 +133,13 @@ i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
 	return 0;
 }
 
-i32 tdb_table_write_data(tdb_table* t, void* data, size_t size) {
+i32 tdb_table_write_data(tdb_table* t, void* data, i64 size) {
 	tdb_col* col = (tdb_col*)t->schema->columns.data + t->col_index;
-	if (col->len + 1 > col->capacity)
-		col_grow(col, col->capacity * 2);
-	memcpy(col->data + col->len * col->stride, data, size);
-	col->len += 1;
+  vec_mmap* vec_mmap = &col->data;
+	if (vec_mmap->len + 1 > vec_mmap->capacity)
+		vec_mmap_grow(vec_mmap);
+	memcpy(vec_mmap->data + vec_mmap->len * col->stride, data, size);
+	vec_mmap->len += 1;
 	t->col_index = (t->col_index + 1) % t->schema->columns.len;
 
 	return 0;

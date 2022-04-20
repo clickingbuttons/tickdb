@@ -8,8 +8,8 @@
 typedef struct tdb_block {
 	i64 symbol;
 	i64 ts_min;
-	size_t n_rows;
-	size_t offset;
+	i64 n_rows;
+	i64 offset;
 } tdb_block;
 
 typedef struct tdb_partition {
@@ -24,13 +24,13 @@ typedef vec_t(tdb_block) vec_tdb_block;
 typedef struct tdb_table {
 	// schema must be first element for clever `free`ing
 	tdb_schema* schema;
-	size_t largest_col;
-	size_t col_index;
+	i64 largest_col;
+	i64 col_index;
 	tdb_partition partition;
 	string symbol_path;
 	FILE* symbol_file;
 	vec_string symbols;
-	// TODO: size_t sym_size;
+	// TODO: i64 sym_size;
 	hashmap blocks;		 // symbol (i32): vec_tickdb_block
 	hashmap symbol_uids; // symbol (char*): i32
 } tdb_table;
@@ -39,7 +39,7 @@ API tdb_table* tdb_table_init(tdb_schema* s);
 API i32 tdb_table_close(tdb_table* t);
 
 API i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos);
-API i32 tdb_table_write_data(tdb_table* t, void* data, size_t size);
+API i32 tdb_table_write_data(tdb_table* t, void* data, i64 size);
 #define register_writer(ty)                                                    \
 	static i32 tdb_table_write_##ty(tdb_table* table, ty value) {              \
 		return tdb_table_write_data(table, &value, sizeof(ty));                \
