@@ -5,4 +5,4 @@ ContinuationIndentWidth: 1
 UseTab: Always
 IndentWidth: 4
 TabWidth: 4
-ColumnLimit: 85
+ColumnLimit: 80

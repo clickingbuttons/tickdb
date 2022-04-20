@@ -1,7 +1,7 @@
 #pragma once
 
-#include "util/hashmap.h"
 #include "schema.h"
+#include "util/hashmap.h"
 
 #define TDB_MAX_FMT_LEN 64
 

@@ -33,7 +33,7 @@ typedef struct tdb_col {
 	tdb_coltype type;
 	i64 stride;
 
-  vec_mmap data;
+	vec_mmap data;
 } tdb_col;
 
 typedef vec_t(tdb_col) vec_tdb_col;

@@ -1,5 +1,5 @@
-#include "../src/util/inttypes.h"
 #include "../src/tickdb.h"
+#include "../src/util/inttypes.h"
 
 #include <stdlib.h>
 

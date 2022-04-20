@@ -22,7 +22,7 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 
 	string_printf(&res->symbol_path, "data/%p/%p.%s", &s->name,
 				  &s->sym_universe, column_ext(s->sym_type));
-  mkdirp(sdata(res->symbol_path));
+	mkdirp(sdata(res->symbol_path));
 	res->symbol_file = fopen(sdata(res->symbol_path), "a");
 	if (res->symbol_file == NULL) {
 		TDB_ERRF_SYS("open symbol file %s", sdata(res->symbol_path));
@@ -37,9 +37,10 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 
 i32 tdb_table_close(tdb_table* t) {
 	for_each(col, t->schema->columns) {
-    string_free(&col->name);
-    if (vec_mmap_close(&col->data)) return 1;
-  }
+		string_free(&col->name);
+		if (vec_mmap_close(&col->data))
+			return 1;
+	}
 	tdb_schema_free(t->schema);
 
 	hm_iter(&t->blocks) vec_free((vec_tdb_block*)val);
@@ -120,9 +121,10 @@ i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
 		for_each(col, t->schema->columns) {
 			if (vec_mmap_close(&col->data))
 				return 2;
-      string_printf(&col->data.path, "data/%p/%s/%p.%s", &t->schema->name, t->partition.name,
-				  &col->name, column_ext(col->type));
-			if (vec_mmap_open(&col->data, &col->data.path, COL_DEFAULT_CAP, col->stride))
+			string_printf(&col->data.path, "data/%p/%s/%p.%s", &t->schema->name,
+						  t->partition.name, &col->name, column_ext(col->type));
+			if (vec_mmap_open(&col->data, &col->data.path, COL_DEFAULT_CAP,
+							  col->stride))
 				return 3;
 		}
 	}
@@ -135,7 +137,7 @@ i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
 
 i32 tdb_table_write_data(tdb_table* t, void* data, i64 size) {
 	tdb_col* col = (tdb_col*)t->schema->columns.data + t->col_index;
-  vec_mmap* vec_mmap = &col->data;
+	vec_mmap* vec_mmap = &col->data;
 	if (vec_mmap->len + 1 > vec_mmap->capacity)
 		vec_mmap_grow(vec_mmap);
 	memcpy(vec_mmap->data + vec_mmap->len * col->stride, data, size);
