@@ -36,11 +36,6 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 }
 
 i32 tdb_table_close(tdb_table* t) {
-	for_each(col, t->schema->columns) {
-		string_free(&col->name);
-		if (vec_mmap_close(&col->data))
-			return 1;
-	}
 	tdb_schema_free(t->schema);
 
 	hm_iter(&t->blocks) vec_free((vec_tdb_block*)val);
@@ -121,11 +116,13 @@ i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
 		for_each(col, t->schema->columns) {
 			if (vec_mmap_close(&col->data))
 				return 2;
-			string_printf(&col->data.path, "data/%p/%s/%p.%s", &t->schema->name,
+      string path = string_empty;
+			string_printf(&path, "data/%p/%s/%p.%s", &t->schema->name,
 						  t->partition.name, &col->name, column_ext(col->type));
-			if (vec_mmap_open(&col->data, &col->data.path, COL_DEFAULT_CAP,
+			if (vec_mmap_open(&col->data, sdata(path), COL_DEFAULT_CAP,
 							  col->stride))
 				return 3;
+      string_free(&path);
 		}
 	}
 

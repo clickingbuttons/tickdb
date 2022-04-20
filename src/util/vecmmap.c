@@ -60,11 +60,12 @@ i32 vec_mmap_grow(vec_mmap* v) {
 	return 0;
 }
 
-i32 vec_mmap_open(vec_mmap* v, string* path, i64 capacity, i64 stride) {
-	v->path = string_initn(string_data(path), string_len(path));
+i32 vec_mmap_open(vec_mmap* v, const char* path, i64 capacity, i64 stride) {
+	v->path = string_init(path);
 	v->capacity = capacity;
 	v->len = 0;
 	v->stride = stride;
+  v->fd = 0;
 	if (string_len(&v->path) > PATH_MAX) {
 		TDB_ERRF("file %s is longer than PATH_MAX of %d\n", sdata(v->path),
 				 PATH_MAX);
@@ -90,13 +91,14 @@ i32 vec_mmap_open(vec_mmap* v, string* path, i64 capacity, i64 stride) {
 }
 
 i32 vec_mmap_close(vec_mmap* v) {
-	string_free(&v->path);
 	if (vec_mmap_unmap(v))
 		return 1;
 	if (v->fd && close(v->fd)) {
-		TDB_ERRF_SYS("close %s", sdata(v->path));
+		TDB_ERRF_SYS("close %s %d", sdata(v->path), v->fd);
 		return 1;
 	}
+  v->fd = -1;
+	string_free(&v->path);
 
 	return 0;
 }
