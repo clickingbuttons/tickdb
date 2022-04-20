@@ -56,6 +56,7 @@ typedef vec_t(f64) vec_f64;
 		(v)->data = NULL;                                                      \
 	}
 
+// see vecmmap.h
 #define for_each(i, c)                                                         \
 	for (typeof((c).data) i = (c).data; i < (c).data + (c).len; i++)
 

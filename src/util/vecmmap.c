@@ -29,40 +29,43 @@ i32 mkdirp(const char* path) {
 }
 
 i32 vec_mmap_unmap(vec_mmap* v) {
+  if (msync(v->data, v->size, MS_SYNC)) {
+		TDB_ERRF_SYS("msync %s", sdata(v->path));
+		return 1;
+  }
 	if (v->data != NULL && munmap(v->data, v->size)) {
 		TDB_ERRF_SYS("munmap %s", sdata(v->path));
-		return 1;
+		return 2;
 	}
 	v->data = NULL;
 
 	return 0;
 }
 
-i32 vec_mmap_grow(vec_mmap* v) {
-	i64 fsize = v->size * 2;
-	if (ftruncate(v->fd, fsize) != 0) {
+i32 vec_mmap_resize(vec_mmap* v, i64 newsize) {
+	if (ftruncate(v->fd, newsize) != 0) {
 		TDB_ERRF_SYS("ftruncate %s", sdata(v->path));
 		return 1;
 	}
 
-	if (v->data == NULL)
-		v->data = (char*)mmap(NULL, fsize, PROT_READ | PROT_WRITE, MAP_PRIVATE,
+	if (v->data == NULL) {
+		v->data = (char*)mmap(NULL, newsize, PROT_READ | PROT_WRITE, MAP_SHARED,
 							  v->fd, 0);
-	else
+  } else {
 		v->data =
-		 (char*)mremap(v->data, v->size, fsize, MREMAP_MAYMOVE);
+		 (char*)mremap(v->data, v->size, newsize, MREMAP_MAYMOVE);
+  }
 	if (v->data == MAP_FAILED) {
 		TDB_ERRF_SYS("mmap %s", sdata(v->path));
 		return 1;
 	}
-	v->size *= 2;
+	v->size = newsize;
 
 	return 0;
 }
 
 i32 vec_mmap_open(vec_mmap* v, const char* path, i64 size) {
 	v->path = string_init(path);
-	v->size = size;
 	if (string_len(&v->path) > PATH_MAX) {
 		TDB_ERRF("file %s is longer than PATH_MAX of %d\n", sdata(v->path),
 				 PATH_MAX);
@@ -80,7 +83,7 @@ i32 vec_mmap_open(vec_mmap* v, const char* path, i64 size) {
 		return 1;
 	}
 	v->fd = fd;
-	if (vec_mmap_grow(v))
+	if (vec_mmap_resize(v, size))
 		return 1;
 
 	// TODO: sym column support
@@ -92,10 +95,27 @@ i32 vec_mmap_close(vec_mmap* v) {
 		return 1;
 	if (v->fd && close(v->fd)) {
 		TDB_ERRF_SYS("close %s %d", sdata(v->path), v->fd);
-		return 1;
+		return 2;
 	}
   v->fd = -1;
 	string_free(&v->path);
 
 	return 0;
 }
+
+#ifdef TEST_MMAP_VEC
+#include <stdio.h>
+int main(void) {
+	vec_mmap_i8 v = {0};
+  vec_mmap_init(v, "asdfasdf.file");
+	vec_mmap_push(v, 1);
+	i8 a = 2;
+	vec_mmap_push_ptr(&v, &a);
+	for (i8 i = 3; i < 10; i++) {
+		vec_mmap_push(v, i);
+	}
+	for_each(i, v) { printf("%d\n", *i); }
+  vec_mmap_free(v);
+}
+#endif
+

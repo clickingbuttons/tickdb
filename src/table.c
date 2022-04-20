@@ -200,7 +200,7 @@ i32 tdb_table_write_data(tdb_table* t, void* data, i64 size) {
 
 	char* dest = get_dest(t->block, col);
 	if (dest + col->stride > col->data.data + col->data.size) {
-		vec_mmap_grow(&col->data);
+		vec_mmap_resize(&col->data, col->data.size * 2);
 		dest = get_dest(t->block, col);
 	}
 	memcpy(dest, data, size);
