@@ -1,8 +1,11 @@
 #pragma once
 
 #include "inttypes.h"
+#include "platform.h"
+#include "string.h"
 #include "wyhash.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,14 +17,16 @@ typedef bool (*hashmap_equal_fn)(const void* key1, const void* key2, void* ctx);
 typedef u64 (*hashmap_hash_fn)(const void* key, size_t size, void* ctx);
 
 typedef struct hashmap {
-	size_t key_size;
-	size_t val_size;
-	size_t capacity;
-	size_t len;
+	u64 key_size;
+	u64 val_size;
+	u64 capacity;
+	u64 len;
 	char* data;
 	void* empty_key;
 	hashmap_equal_fn equals;
 	hashmap_hash_fn hasher;
+  // For mmaped hashmaps
+  mmaped_file file;
 } hashmap;
 
 static inline char* hm_get_key_at(hashmap* hm, char* start, size_t index) {
@@ -41,20 +46,32 @@ static u64 hm_default_hasher(const void* key, size_t size, void* ctx) {
 	return wyhash(key, size);
 }
 
-static hashmap _hm_init(size_t key_size, size_t val_size) {
-	hashmap res = {
-	 .key_size = key_size,
-	 .val_size = val_size,
-	 .capacity = HASHMAP_DEFAULT_CAPACITY,
-	 .data = (char*)calloc(HASHMAP_DEFAULT_CAPACITY + 1, key_size + val_size),
-	 .equals = hm_default_equals,
-	 .hasher = hm_default_hasher,
-	};
-	res.empty_key = hm_get_key(&res, res.capacity);
-	return res;
+static i32 _hm_init(hashmap* hm, u64 key_size, u64 val_size, const char* path) {
+  hm->key_size = key_size;
+  hm->val_size = val_size;
+  hm->capacity = HASHMAP_DEFAULT_CAPACITY;
+  hm->equals = hm_default_equals;
+  hm->hasher = hm_default_hasher;
+  i64 size = (HASHMAP_DEFAULT_CAPACITY + 1) * (key_size + val_size);
+  if (path == NULL) {
+	  hm->data = (char*)malloc(size);
+    memset(hm->data, 0, size);
+  } else {
+    if (mmaped_file_open(&hm->file, path))
+      return 1;
+    if (mmaped_file_grow(&hm->file, size))
+      return 2;
+  }
+
+	hm->empty_key = hm_get_key(hm, hm->capacity);
+	return 0;
 }
 
-#define hm_init(key_type, val_type) _hm_init(sizeof(key_type), sizeof(val_type))
+#define hm_init(key_type, val_type) ({ \
+  hashmap new_map = { 0 }; \
+  _hm_init(&new_map, sizeof(key_type), sizeof(val_type), NULL); \
+  new_map; \
+})
 
 static void hm_grow(hashmap* hm);
 

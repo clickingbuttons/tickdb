@@ -83,7 +83,7 @@ void tdb_schema_free(tdb_schema* s) {
 	string_free(&s->sym_universe);
 	for_each(col, s->columns) {
 		string_free(&col->name);
-		vec_mmap_close(&col->data);
+    mmaped_file_close(&col->file);
 	}
 	vec_free(&s->columns);
 	free(s);

@@ -4,6 +4,10 @@
 #include <limits.h>
 
 #define COL_DEFAULT_CAP 10000000
+// 8-byte column: 512k
+// 4-byte column: 256k
+// 2-byte column: 128k
+// 1-byte column: 64k
 #define MIN_BLOCK_SIZE KIBIBYTES(64)
 
 static u64 hm_string_hash(const void* key, size_t _, void* __) {
@@ -19,6 +23,7 @@ static bool hm_string_equals(const void* key1, const void* key2, void* _) {
 tdb_table* tdb_table_init(tdb_schema* s) {
 	tdb_table* res = calloc(sizeof(tdb_table), 1);
 	res->schema = s;
+
 	res->blocks = hm_init(i32, vec_tdb_block);
 	res->partition.name = string_empty;
 	string_printf(&res->data_path, "data/%p", &s->name);
@@ -88,7 +93,7 @@ static void tdb_write_sym(tdb_table* t, string* symbol, size_t sym_num) {
 	fwrite(string_data(symbol), string_len(symbol), 1, t->symbol_file);
 }
 
-i32 tdb_table_stoi(tdb_table* t, char* symbol) {
+i32 tdb_table_stoi(tdb_table* t, const char* symbol) {
 	string s = string_init(symbol);
 	i32* sym = _hm_get(&t->symbol_uids, &s);
 	if (sym == NULL) {
@@ -101,8 +106,7 @@ i32 tdb_table_stoi(tdb_table* t, char* symbol) {
 }
 
 char* tdb_table_itos(tdb_table* t, i64 symbol) {
-	string* symbols = (string*)t->symbols.data;
-	return sdata(symbols[symbol - 1]);
+	return sdata(t->symbols.data[symbol - 1]);
 }
 
 static tdb_block* get_block(tdb_table* t, i32 symbol, i64 nanos) {
@@ -138,7 +142,7 @@ static bool is_old_partition(tdb_partition* p, i64 epoch_nanos) {
 	return false;
 }
 
-i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
+i32 tdb_table_write(tdb_table* t, const char* symbol, i64 epoch_nanos) {
 	i32 id = tdb_table_stoi(t, symbol);
 	tdb_schema* s = t->schema;
 	tdb_partition* p = &t->partition;
@@ -148,7 +152,7 @@ i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
 		string_grow(&p->name, PATH_MAX);
 		p->name._size =
 		 strftime(sdata(p->name), PATH_MAX, sdata(s->partition_fmt), &time);
-		printf("partition %s\n", sdata(t->partition.name));
+		printf("partition %s\n", sdata(p->name));
 
 		p->ts_min = min_partition_ts(&s->partition_fmt, epoch_nanos);
 		p->ts_max = max_partition_ts(&s->partition_fmt, epoch_nanos);
@@ -166,21 +170,23 @@ i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
 		}
 
 		// Open new columns
-		for_each(col, t->schema->columns) {
-			if (vec_mmap_close(&col->data))
+		for_each(col, s->columns) {
+			if (mmaped_file_close(&col->file))
 				return 2;
       string path = string_empty;
-			string_printf(&path, "data/%p/%p/%p.%s", &t->schema->name,
-						  &t->partition.name, &col->name, column_ext(col->type));
-			if (vec_mmap_open(&col->data, sdata(path), COL_DEFAULT_CAP *
-							  col->stride))
+			string_printf(&path, "data/%p/%p/%p.%s", &s->name,
+						  &p->name, &col->name, column_ext(col->type));
+
+			if (mmaped_file_open(&col->file, sdata(path)))
 				return 3;
+      if (mmaped_file_grow(&col->file, COL_DEFAULT_CAP * col->stride))
+        return 4;
       string_free(&path);
 		}
 	}
 
 	t->block = get_block(t, id, epoch_nanos);
-	tdb_col* ts_col = t->schema->columns.data;
+	tdb_col* ts_col = s->columns.data;
 	tdb_table_write_data(t, &epoch_nanos, ts_col->stride);
 
 	return 0;
@@ -188,7 +194,7 @@ i32 tdb_table_write(tdb_table* t, char* symbol, i64 epoch_nanos) {
 
 static inline char* get_dest(tdb_block* block, tdb_col* col) {
 	off_t offset = (block->num * col->block_size) + (block->len * col->stride);
-	char* res = col->data.data + offset;
+	char* res = col->file.data + offset;
 	// printf("n %lu l %d p %p off %lu res %p\n", block->num, block->len,
 	// col->data, offset, res);
 
@@ -199,8 +205,9 @@ i32 tdb_table_write_data(tdb_table* t, void* data, i64 size) {
 	tdb_col* col = (tdb_col*)t->schema->columns.data + t->col_index;
 
 	char* dest = get_dest(t->block, col);
-	if (dest + col->stride > col->data.data + col->data.size) {
-		vec_mmap_resize(&col->data, col->data.size * 2);
+	if (dest + col->stride > col->file.data + col->file.size) {
+    if (mmaped_file_grow(&col->file, col->file.size * 2))
+      return 1;
 		dest = get_dest(t->block, col);
 	}
 	memcpy(dest, data, size);
