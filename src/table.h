@@ -26,8 +26,6 @@ typedef struct tdb_table {
 	tdb_partition partition;
 	string data_path;
 	hashmap blocks; // symbol (i32): vec_tickdb_block
-	string block_path;
-	FILE* block_file;
 	string symbol_path;
 	FILE* symbol_file;
 	vec_string symbols;

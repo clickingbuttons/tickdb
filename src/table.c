@@ -24,7 +24,6 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 	tdb_table* res = calloc(sizeof(tdb_table), 1);
 	res->schema = s;
 
-	res->blocks = hm_init(i32, vec_tdb_block);
 	res->partition.name = string_empty;
 	string_printf(&res->data_path, "data/%p", &s->name);
 
@@ -38,36 +37,12 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 		TDB_ERRF_SYS("open symbol file %s", sdata(res->symbol_path));
 		return NULL;
 	}
-	res->symbol_uids = hm_init(string, i32);
+	if (hm_init(&res->symbol_uids, sizeof(string), sizeof(i32), NULL))
+    return NULL;
 	res->symbol_uids.equals = hm_string_equals;
 	res->symbol_uids.hasher = hm_string_hash;
 
 	return res;
-}
-
-// TODO: mmap vec_tdb_block to file
-static void tdb_write_blocks(tdb_table* t) {
-	fprintf(t->block_file, "%s", "sym,ts_min,num,len");
-	hm_iter(&t->blocks) {
-		for_each(b, *(vec_tdb_block*)val) {
-			fwrite("\n", 1, 1, t->block_file);
-			fprintf(t->block_file, "%d,%ld,%ld,%d", b->symbol, b->ts_min,
-					b->num, b->len);
-		}
-	}
-}
-
-i32 close_block(tdb_table* t) {
-	if (t->block_file == NULL)
-		return 0;
-
-	tdb_write_blocks(t);
-	if (fclose(t->block_file)) {
-		TDB_ERRF_SYS("fclose %s", sdata(t->block_path));
-		return 1;
-	}
-
-	return 0;
 }
 
 i32 tdb_table_close(tdb_table* t) {
@@ -75,7 +50,6 @@ i32 tdb_table_close(tdb_table* t) {
 	string_free(&t->data_path);
 
 	string_free(&t->partition.name);
-	close_block(t);
 	hm_iter(&t->blocks) vec_free((vec_tdb_block*)val);
 	hm_free(&t->blocks);
 	string_free(&t->symbol_path);
@@ -158,28 +132,22 @@ i32 tdb_table_write(tdb_table* t, const char* symbol, i64 epoch_nanos) {
 		p->ts_max = max_partition_ts(&s->partition_fmt, epoch_nanos);
 
 		// Open new block index
-		close_block(t);
-		string_printf(&t->block_path, "%p/%p/blocks.unsorted", &t->data_path,
-					  &p->name);
-		if (mkdirp(sdata(t->block_path)))
-			return 1;
-		t->block_file = fopen(sdata(t->block_path), "a");
-		if (t->block_file == NULL) {
-			TDB_ERRF_SYS("open block file %s", sdata(t->block_path));
-			return 2;
-		}
+    string path;
+    string_printf(&path, "%p/%p/blocks.unsorted", &t->data_path, &p->name);
+    hm_init(&t->blocks, sizeof(i32), sizeof(vec_tdb_block), sdata(path)); \
+    string_free(&path);
 
 		// Open new columns
 		for_each(col, s->columns) {
 			if (mmaped_file_close(&col->file))
 				return 2;
       string path = string_empty;
-			string_printf(&path, "data/%p/%p/%p.%s", &s->name,
+			string_printf(&path, "%p/%p/%p.%s", &t->data_path,
 						  &p->name, &col->name, column_ext(col->type));
 
 			if (mmaped_file_open(&col->file, sdata(path)))
 				return 3;
-      if (mmaped_file_grow(&col->file, COL_DEFAULT_CAP * col->stride))
+      if (mmaped_file_resize(&col->file, COL_DEFAULT_CAP * col->stride))
         return 4;
       string_free(&path);
 		}
@@ -206,7 +174,7 @@ i32 tdb_table_write_data(tdb_table* t, void* data, i64 size) {
 
 	char* dest = get_dest(t->block, col);
 	if (dest + col->stride > col->file.data + col->file.size) {
-    if (mmaped_file_grow(&col->file, col->file.size * 2))
+    if (mmaped_file_resize(&col->file, col->file.size * 2))
       return 1;
 		dest = get_dest(t->block, col);
 	}

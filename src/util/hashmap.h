@@ -21,11 +21,12 @@ typedef struct hashmap {
 	u64 val_size;
 	u64 capacity;
 	u64 len;
-	char* data;
 	void* empty_key;
 	hashmap_equal_fn equals;
 	hashmap_hash_fn hasher;
   // For mmaped hashmaps
+  // Use data inside of here to avoid syncing
+  bool is_file;
   mmaped_file file;
 } hashmap;
 
@@ -34,7 +35,7 @@ static inline char* hm_get_key_at(hashmap* hm, char* start, size_t index) {
 }
 
 static inline char* hm_get_key(hashmap* hm, size_t index) {
-	return hm_get_key_at(hm, hm->data, index);
+	return hm_get_key_at(hm, hm->file.data, index);
 }
 
 static bool hm_default_equals(const void* k1, const void* k2, void* ctx) {
@@ -46,7 +47,8 @@ static u64 hm_default_hasher(const void* key, size_t size, void* ctx) {
 	return wyhash(key, size);
 }
 
-static i32 _hm_init(hashmap* hm, u64 key_size, u64 val_size, const char* path) {
+static i32 hm_init(hashmap* hm, u64 key_size, u64 val_size, const char* path) {
+  memset(hm, 0, sizeof(hashmap));
   hm->key_size = key_size;
   hm->val_size = val_size;
   hm->capacity = HASHMAP_DEFAULT_CAPACITY;
@@ -54,24 +56,23 @@ static i32 _hm_init(hashmap* hm, u64 key_size, u64 val_size, const char* path) {
   hm->hasher = hm_default_hasher;
   i64 size = (HASHMAP_DEFAULT_CAPACITY + 1) * (key_size + val_size);
   if (path == NULL) {
-	  hm->data = (char*)malloc(size);
-    memset(hm->data, 0, size);
-  } else {
-    if (mmaped_file_open(&hm->file, path))
+	  hm->file.data = (char*)malloc(size);
+    if (hm->file.data == NULL) {
+      TDB_ERRF_SYS("malloc %lu", size);
       return 1;
-    if (mmaped_file_grow(&hm->file, size))
+    }
+    memset(hm->file.data, 0, size);
+  } else {
+    hm->is_file = true;
+    if (mmaped_file_open(&hm->file, path))
       return 2;
+    if (mmaped_file_resize(&hm->file, size))
+      return 3;
   }
 
 	hm->empty_key = hm_get_key(hm, hm->capacity);
 	return 0;
 }
-
-#define hm_init(key_type, val_type) ({ \
-  hashmap new_map = { 0 }; \
-  _hm_init(&new_map, sizeof(key_type), sizeof(val_type), NULL); \
-  new_map; \
-})
 
 static void hm_grow(hashmap* hm);
 
@@ -90,7 +91,7 @@ static void* _hm_put(hashmap* hm, void* key, void* val) {
 	if ((hm->len + 1) > HASHMAP_LOAD_FACTOR * hm->capacity)
 		hm_grow(hm);
 
-	char* existing_key = hm->data + index * (hm->key_size + hm->val_size);
+	char* existing_key = hm->file.data + index * (hm->key_size + hm->val_size);
 	if (hm->equals(existing_key, key, hm)) { // overwrite
 		memcpy(existing_key + hm->key_size, val, hm->val_size);
 		return existing_key + hm->key_size;
@@ -117,9 +118,19 @@ static void* _hm_put(hashmap* hm, void* key, void* val) {
 
 static void hm_grow(hashmap* hm) {
 	size_t old_capacity = hm->capacity;
-	char* old_data = hm->data;
+	char* old_data = hm->file.data;
 	hm->capacity *= 2;
-	hm->data = (char*)calloc(hm->capacity + 1, hm->key_size + hm->val_size);
+  i64 size = (hm->capacity + 1) * (hm->key_size + hm->val_size);
+  if (hm->is_file) {
+    // TODO: better mmaped_file growth strategy
+    old_data = (char*)calloc(old_capacity, hm->key_size + hm->val_size);
+    memcpy(old_data, hm->file.data, old_capacity);
+    mmaped_file_resize(&hm->file, size);
+    memset(hm->file.data, 0, size);
+  }
+  else {
+    hm->file.data = (char*)calloc(hm->capacity + 1, hm->key_size + hm->val_size);
+  }
 	hm->empty_key = hm_get_key(hm, hm->capacity);
 	hm->len = 0;
 	for (int i = 0; i < old_capacity; i++) {
@@ -153,7 +164,14 @@ static void* _hm_get(hashmap* hm, void* key) {
 		*((valtype*)_hm_get(&hm, &key_copy));                                  \
 	})
 
-static void hm_free(hashmap* hm) { free(hm->data); }
+static i32 hm_free(hashmap* hm) {
+  if (hm->is_file)
+    return mmaped_file_close(&hm->file);
+  else
+    free(hm->file.data);
+
+  return 0;
+}
 
 static void hm_print(hashmap* hm) {
 	for (int i = 0; i < hm->capacity; i++) {
@@ -176,10 +194,10 @@ static void hm_print(hashmap* hm) {
 	}
 }
 
-static char* hm_begin(hashmap* hm) { return hm->data; }
+static char* hm_begin(hashmap* hm) { return hm->file.data; }
 
 static char* hm_end(hashmap* hm) {
-	return hm->data + hm->capacity * (hm->key_size + hm->val_size);
+	return hm->file.data + hm->capacity * (hm->key_size + hm->val_size);
 }
 
 static char* hm_next(hashmap* hm, char* cur) {

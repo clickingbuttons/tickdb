@@ -54,9 +54,9 @@ static i32 mmaped_file_open(mmaped_file* res, const char* path) {
   return 0;
 }
 
-static i32 mmaped_file_grow(mmaped_file* m, i64 newsize) {
+static i32 mmaped_file_resize(mmaped_file* m, u64 newsize) {
 	if (ftruncate(m->fd, newsize) != 0) {
-		TDB_ERRF_SYS("ftruncate %s", sdata(m->path));
+		TDB_ERRF_SYS("ftruncate %s (fd %d) %lu", sdata(m->path), m->fd, newsize);
 		return 1;
 	}
 
@@ -64,8 +64,7 @@ static i32 mmaped_file_grow(mmaped_file* m, i64 newsize) {
 		m->data = (char*)mmap(NULL, newsize, PROT_READ | PROT_WRITE, MAP_SHARED,
 							  m->fd, 0);
   } else {
-		m->data =
-		 (char*)mremap(m->data, m->size, newsize, MREMAP_MAYMOVE);
+		m->data = (char*)mremap(m->data, m->size, newsize, MREMAP_MAYMOVE);
   }
 	if (m->data == MAP_FAILED) {
 		TDB_ERRF_SYS("mmap %s", sdata(m->path));

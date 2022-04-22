@@ -60,7 +60,7 @@ int main(void) {
 		exit(1);
 	}
 
-	int num_trades = 10000000;
+	int num_trades = 1000000;
 	trade t;
 	for (int i = 1; keep_running && i <= num_trades; i++) {
 		generate_trade(&t);
