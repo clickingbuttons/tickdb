@@ -50,7 +50,7 @@ i32 tdb_table_close(tdb_table* t) {
 	string_free(&t->data_path);
 
 	string_free(&t->partition.name);
-	hm_iter(&t->blocks) vec_free((vec_tdb_block*)val);
+	hm_iter(&t->blocks) vec_free((vec_tdb_block_pool_byte_offset*)val);
 	hm_free(&t->blocks);
 	string_free(&t->symbol_path);
 	fclose(t->symbol_file);
@@ -84,27 +84,27 @@ char* tdb_table_itos(tdb_table* t, i64 symbol) {
 }
 
 static tdb_block* get_block(tdb_table* t, i32 symbol, i64 nanos) {
-	vec_tdb_block* blocks = _hm_get(&t->blocks, &symbol);
+	vec_tdb_block_pool_byte_offset* blocks = _hm_get(&t->blocks, &symbol);
 	if (blocks == NULL) {
-		vec_tdb_block new_blocks = {0};
+		vec_tdb_block_pool_byte_offset new_blocks = {0};
 		blocks = hm_put(t->blocks, symbol, new_blocks);
 	}
 
-	for_each(b, *blocks) {
+	for_each(offset, *blocks) {
+    tdb_block* b = (tdb_block*)(t->block_pool.file.data + *offset);
 		if (nanos >= b->ts_min && b->len < MIN_BLOCK_SIZE) {
 			b->len += 1;
 			return b;
 		}
 	}
 
-	tdb_block new_block = {
-	 .symbol = symbol,
-	 .ts_min = nanos,
-	 .num = t->partition.num_blocks++,
-	};
-	vec_push_ptr(blocks, &new_block);
+  tdb_block* new_block = pool_get(&t->block_pool, sizeof(tdb_block));
+	new_block->symbol = symbol;
+	new_block->ts_min = nanos;
+	new_block->num = t->partition.num_blocks++;
+	vec_push_ptr(blocks, &t->block_pool.used);
 
-	return blocks->data + blocks->len - 1;
+	return new_block;
 }
 
 static bool is_old_partition(tdb_partition* p, i64 epoch_nanos) {
@@ -132,9 +132,10 @@ i32 tdb_table_write(tdb_table* t, const char* symbol, i64 epoch_nanos) {
 		p->ts_max = max_partition_ts(&s->partition_fmt, epoch_nanos);
 
 		// Open new block index
+    hm_init(&t->blocks, sizeof(i32), sizeof(vec_tdb_block_pool_byte_offset), NULL); \
     string path;
     string_printf(&path, "%p/%p/blocks.unsorted", &t->data_path, &p->name);
-    hm_init(&t->blocks, sizeof(i32), sizeof(vec_tdb_block), sdata(path)); \
+    pool_init(&t->block_pool, sizeof(tdb_block) * 32, sdata(path));
     string_free(&path);
 
 		// Open new columns

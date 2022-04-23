@@ -2,6 +2,7 @@
 
 #include "schema.h"
 #include "util/hashmap.h"
+#include "util/mmappool.h"
 
 typedef struct tdb_block {
 	i32 symbol;
@@ -18,14 +19,15 @@ typedef struct tdb_partition {
 } tdb_partition;
 
 typedef vec_t(string) vec_string;
-typedef vec_t(tdb_block) vec_tdb_block;
+typedef vec_t(u64) vec_tdb_block_pool_byte_offset;
 
 typedef struct tdb_table {
 	// schema must be first element for clever `free`ing
 	tdb_schema* schema;
 	tdb_partition partition;
 	string data_path;
-	hashmap blocks; // symbol (i32): vec_tickdb_block
+  pool block_pool;
+	hashmap blocks; // symbol (i32): vec_mmap_tickdb_block
 	string symbol_path;
 	FILE* symbol_file;
 	vec_string symbols;

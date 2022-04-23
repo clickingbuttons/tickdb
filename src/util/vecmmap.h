@@ -43,8 +43,8 @@ typedef vec_mmap_t(f64) vec_mmap_f64;
 
 #define vec_mmap_free(v)                                                            \
 	{                                                                          \
-    vec_mmap_close(&(v).file); \
 		(v).data = NULL;                                                      \
+    return vec_mmap_close(&(v).file); \
 	}
 
 // see vec.h
