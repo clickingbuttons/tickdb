@@ -24,10 +24,10 @@ typedef struct hashmap {
 	void* empty_key;
 	hashmap_equal_fn equals;
 	hashmap_hash_fn hasher;
-  // For mmaped hashmaps
-  // Use data inside of here to avoid syncing
-  bool is_file;
-  mmaped_file file;
+	// For mmaped hashmaps
+	// Use data inside of here to avoid syncing
+	bool is_file;
+	mmaped_file file;
 } hashmap;
 
 static inline char* hm_get_key_at(hashmap* hm, char* start, size_t index) {
@@ -48,27 +48,27 @@ static u64 hm_default_hasher(const void* key, size_t size, void* ctx) {
 }
 
 static i32 hm_init(hashmap* hm, u64 key_size, u64 val_size, const char* path) {
-  memset(hm, 0, sizeof(hashmap));
-  hm->key_size = key_size;
-  hm->val_size = val_size;
-  hm->capacity = HASHMAP_DEFAULT_CAPACITY;
-  hm->equals = hm_default_equals;
-  hm->hasher = hm_default_hasher;
-  i64 size = (HASHMAP_DEFAULT_CAPACITY + 1) * (key_size + val_size);
-  if (path == NULL) {
-	  hm->file.data = (char*)malloc(size);
-    if (hm->file.data == NULL) {
-      TDB_ERRF_SYS("malloc %lu", size);
-      return 1;
-    }
-    memset(hm->file.data, 0, size);
-  } else {
-    hm->is_file = true;
-    if (mmaped_file_open(&hm->file, path))
-      return 2;
-    if (mmaped_file_resize(&hm->file, size))
-      return 3;
-  }
+	memset(hm, 0, sizeof(hashmap));
+	hm->key_size = key_size;
+	hm->val_size = val_size;
+	hm->capacity = HASHMAP_DEFAULT_CAPACITY;
+	hm->equals = hm_default_equals;
+	hm->hasher = hm_default_hasher;
+	i64 size = (HASHMAP_DEFAULT_CAPACITY + 1) * (key_size + val_size);
+	if (path == NULL) {
+		hm->file.data = (char*)malloc(size);
+		if (hm->file.data == NULL) {
+			TDB_ERRF_SYS("malloc %lu", size);
+			return 1;
+		}
+		memset(hm->file.data, 0, size);
+	} else {
+		hm->is_file = true;
+		if (mmaped_file_open(&hm->file, path))
+			return 2;
+		if (mmaped_file_resize(&hm->file, size))
+			return 3;
+	}
 
 	hm->empty_key = hm_get_key(hm, hm->capacity);
 	return 0;
@@ -120,17 +120,17 @@ static void hm_grow(hashmap* hm) {
 	size_t old_capacity = hm->capacity;
 	char* old_data = hm->file.data;
 	hm->capacity *= 2;
-  i64 size = (hm->capacity + 1) * (hm->key_size + hm->val_size);
-  if (hm->is_file) {
-    // TODO: better mmaped_file growth strategy
-    old_data = (char*)calloc(old_capacity, hm->key_size + hm->val_size);
-    memcpy(old_data, hm->file.data, old_capacity);
-    mmaped_file_resize(&hm->file, size);
-    memset(hm->file.data, 0, size);
-  }
-  else {
-    hm->file.data = (char*)calloc(hm->capacity + 1, hm->key_size + hm->val_size);
-  }
+	i64 size = (hm->capacity + 1) * (hm->key_size + hm->val_size);
+	if (hm->is_file) {
+		// TODO: better mmaped_file growth strategy
+		old_data = (char*)calloc(old_capacity, hm->key_size + hm->val_size);
+		memcpy(old_data, hm->file.data, old_capacity);
+		mmaped_file_resize(&hm->file, size);
+		memset(hm->file.data, 0, size);
+	} else {
+		hm->file.data =
+		 (char*)calloc(hm->capacity + 1, hm->key_size + hm->val_size);
+	}
 	hm->empty_key = hm_get_key(hm, hm->capacity);
 	hm->len = 0;
 	for (int i = 0; i < old_capacity; i++) {
@@ -165,12 +165,12 @@ static void* _hm_get(hashmap* hm, void* key) {
 	})
 
 static i32 hm_free(hashmap* hm) {
-  if (hm->is_file)
-    return mmaped_file_close(&hm->file);
-  else
-    free(hm->file.data);
+	if (hm->is_file)
+		return mmaped_file_close(&hm->file);
+	else
+		free(hm->file.data);
 
-  return 0;
+	return 0;
 }
 
 static void hm_print(hashmap* hm) {

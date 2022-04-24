@@ -29,4 +29,3 @@ static char TDB_ERR[8096];
 	}
 //#define TDB_CHECK(err) if (err != 0) fprintf(stderr, "%s\n", TDB_ERR)
 #define API __attribute__((__visibility__("default")))
-

@@ -26,7 +26,7 @@ typedef struct tdb_table {
 	tdb_schema* schema;
 	tdb_partition partition;
 	string data_path;
-  pool block_pool;
+	pool block_pool;
 	hashmap blocks; // symbol (i32): vec_mmap_tickdb_block
 	string symbol_path;
 	FILE* symbol_file;
@@ -41,6 +41,8 @@ API i32 tdb_table_close(tdb_table* t);
 
 API i32 tdb_table_write(tdb_table* t, const char* symbol, i64 epoch_nanos);
 API i32 tdb_table_write_data(tdb_table* t, void* data, i64 size);
+API i32 tdb_write_block_index(const char* unsorted_path, tdb_block* blocks,
+							  u64 num_rows);
 #define register_writer(ty)                                                    \
 	static i32 tdb_table_write_##ty(tdb_table* table, ty value) {              \
 		return tdb_table_write_data(table, &value, sizeof(ty));                \

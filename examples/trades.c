@@ -34,8 +34,8 @@ void generate_trade(trade* trade) {
 	// log2(26**3) = 14.101319154423276
 	trade->sym[0] = 'A' + (rand() % 26);
 	trade->sym[1] = 'A' + (rand() % 26);
-	trade->sym[2] = 'A' + (rand() % 26);
-	trade->sym[3] = '\0';
+	// trade->sym[2] = 'A' + (rand() % 26);
+	trade->sym[2] = '\0';
 	trade->ts_participant = ts++;
 	trade->ts_trf = ts++;
 }
@@ -60,7 +60,7 @@ int main(void) {
 		exit(1);
 	}
 
-	int num_trades = 1000000;
+	int num_trades = 10000000;
 	trade t;
 	for (int i = 1; keep_running && i <= num_trades; i++) {
 		generate_trade(&t);

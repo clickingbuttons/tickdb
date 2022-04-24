@@ -26,6 +26,10 @@ clean:
 examples: $(BUILD_DIR)/$(LIBSO)
 	make -C examples
 
+.PHONY: tools
+tools: $(BUILD_DIR)/$(LIBSO)
+	make -C tools
+
 .PHONY: test
 test: examples
 	$(RM) -rf data

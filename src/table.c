@@ -38,14 +38,100 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 		return NULL;
 	}
 	if (hm_init(&res->symbol_uids, sizeof(string), sizeof(i32), NULL))
-    return NULL;
+		return NULL;
 	res->symbol_uids.equals = hm_string_equals;
 	res->symbol_uids.hasher = hm_string_hash;
+	res->block_pool.used = 0;
 
 	return res;
 }
 
+static int cmp_blocks(const void* a, const void* b) {
+	tdb_block* b1 = (tdb_block*)a;
+	tdb_block* b2 = (tdb_block*)b;
+
+	if (b1->symbol > b2->symbol)
+		return 1;
+	else if (b1->symbol < b2->symbol)
+		return -1;
+	if (b1->ts_min > b2->ts_min)
+		return 1;
+	else if (b1->ts_min < b2->ts_min)
+		return -1;
+	if (b1->num > b2->num)
+		return 1;
+	else if (b1->num < b2->num)
+		return -1;
+	if (b1->len > b2->len)
+		return 1;
+	else if (b1->len < b2->len)
+		return -1;
+
+	return 0;
+}
+
+i32 tdb_write_block_index(const char* unsorted_path, tdb_block* blocks,
+						  u64 num_rows) {
+	char* ext = strrchr(unsorted_path, '.');
+	if (ext == NULL) {
+		TDB_ERRF("warning: already sorted %s", unsorted_path);
+		return 0;
+	}
+	u64 sorted_len = ext - unsorted_path;
+	char* sorted_path = (char*)malloc(sorted_len);
+	if (sorted_path == NULL) {
+		TDB_ERRF_SYS("malloc %lu", sorted_len);
+		return 1;
+	}
+	memcpy(sorted_path, unsorted_path, sorted_len);
+	sorted_path[sorted_len] = '\0';
+
+	qsort(blocks, num_rows, sizeof(tdb_block), cmp_blocks);
+	FILE* out = fopen(sorted_path, "w");
+	if (out == NULL) {
+		TDB_ERRF_SYS("open %s", sorted_path);
+		free(sorted_path);
+		return 2;
+	}
+	for (u64 i = 0; i < num_rows; i++) {
+		tdb_block* b = blocks + i;
+		if (b->symbol == 0 && b->ts_min == 0 && b->len == 0 && b->num == 0)
+			continue;
+		if (fwrite(b, 1, sizeof(tdb_block), out) == 0) {
+			TDB_ERRF("fwrite %s %lu", sorted_path, i);
+			free(sorted_path);
+			return 3;
+		}
+	}
+
+	if (remove(unsorted_path)) {
+		TDB_ERRF_SYS("remove %s", unsorted_path);
+		free(sorted_path);
+		return 4;
+	}
+
+	if (fclose(out)) {
+		TDB_ERRF_SYS("fclose %s", unsorted_path);
+		free(sorted_path);
+		return 5;
+	}
+	free(sorted_path);
+	return 0;
+}
+
+static i32 tdb_table_write_block_index(tdb_table* t) {
+	if (t->block_pool.used > 0) {
+		pool* bp = &t->block_pool;
+		u64 num_rows = t->block_pool.used / sizeof(tdb_block);
+		return tdb_write_block_index(sdata(bp->file.path),
+									 (tdb_block*)bp->file.data, num_rows);
+	}
+
+	return 0;
+}
+
 i32 tdb_table_close(tdb_table* t) {
+	tdb_table_write_block_index(t);
 	tdb_schema_free(t->schema);
 	string_free(&t->data_path);
 
@@ -91,18 +177,18 @@ static tdb_block* get_block(tdb_table* t, i32 symbol, i64 nanos) {
 	}
 
 	for_each(offset, *blocks) {
-    tdb_block* b = (tdb_block*)(t->block_pool.file.data + *offset);
+		tdb_block* b = (tdb_block*)(t->block_pool.file.data + *offset);
 		if (nanos >= b->ts_min && b->len < MIN_BLOCK_SIZE) {
-			b->len += 1;
 			return b;
 		}
 	}
 
-  tdb_block* new_block = pool_get(&t->block_pool, sizeof(tdb_block));
+	tdb_block* new_block = pool_get(&t->block_pool, sizeof(tdb_block));
 	new_block->symbol = symbol;
 	new_block->ts_min = nanos;
 	new_block->num = t->partition.num_blocks++;
-	vec_push_ptr(blocks, &t->block_pool.used);
+	u64 used = t->block_pool.used - sizeof(tdb_block);
+	vec_push_ptr(blocks, &used);
 
 	return new_block;
 }
@@ -132,31 +218,38 @@ i32 tdb_table_write(tdb_table* t, const char* symbol, i64 epoch_nanos) {
 		p->ts_max = max_partition_ts(&s->partition_fmt, epoch_nanos);
 
 		// Open new block index
-    hm_init(&t->blocks, sizeof(i32), sizeof(vec_tdb_block_pool_byte_offset), NULL); \
-    string path;
-    string_printf(&path, "%p/%p/blocks.unsorted", &t->data_path, &p->name);
-    pool_init(&t->block_pool, sizeof(tdb_block) * 32, sdata(path));
-    string_free(&path);
+		if (tdb_table_write_block_index(t))
+			return 1;
+		if (pool_close(&t->block_pool))
+			return 2;
+		hm_init(&t->blocks, sizeof(i32), sizeof(vec_tdb_block_pool_byte_offset),
+				NULL);
+		string path;
+		string_printf(&path, "%p/%p/blocks.unsorted", &t->data_path, &p->name);
+		if (pool_init(&t->block_pool, sizeof(tdb_block) * 32, sdata(path)))
+			return 3;
+		string_free(&path);
 
 		// Open new columns
 		for_each(col, s->columns) {
 			if (mmaped_file_close(&col->file))
-				return 2;
-      string path = string_empty;
-			string_printf(&path, "%p/%p/%p.%s", &t->data_path,
-						  &p->name, &col->name, column_ext(col->type));
+				return 4;
+			string path = string_empty;
+			string_printf(&path, "%p/%p/%p.%s", &t->data_path, &p->name,
+						  &col->name, column_ext(col->type));
 
 			if (mmaped_file_open(&col->file, sdata(path)))
-				return 3;
-      if (mmaped_file_resize(&col->file, COL_DEFAULT_CAP * col->stride))
-        return 4;
-      string_free(&path);
+				return 5;
+			if (mmaped_file_resize(&col->file, COL_DEFAULT_CAP * col->stride))
+				return 6;
+			string_free(&path);
 		}
 	}
 
 	t->block = get_block(t, id, epoch_nanos);
 	tdb_col* ts_col = s->columns.data;
 	tdb_table_write_data(t, &epoch_nanos, ts_col->stride);
+	t->block->len += 1;
 
 	return 0;
 }
@@ -175,8 +268,8 @@ i32 tdb_table_write_data(tdb_table* t, void* data, i64 size) {
 
 	char* dest = get_dest(t->block, col);
 	if (dest + col->stride > col->file.data + col->file.size) {
-    if (mmaped_file_resize(&col->file, col->file.size * 2))
-      return 1;
+		if (mmaped_file_resize(&col->file, col->file.size * 2))
+			return 1;
 		dest = get_dest(t->block, col);
 	}
 	memcpy(dest, data, size);

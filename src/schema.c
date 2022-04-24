@@ -83,7 +83,7 @@ void tdb_schema_free(tdb_schema* s) {
 	string_free(&s->sym_universe);
 	for_each(col, s->columns) {
 		string_free(&col->name);
-    mmaped_file_close(&col->file);
+		mmaped_file_close(&col->file);
 	}
 	vec_free(&s->columns);
 	free(s);
@@ -136,18 +136,14 @@ const char* column_ext(tdb_coltype type) {
 
 i64 min_col_stride(tdb_schema* s) {
 	i64 res = SIZE_MAX;
-	for_each(col, s->columns)
-		if (col->stride < res)
-			res = col->stride;
+	for_each(col, s->columns) if (col->stride < res) res = col->stride;
 
 	return res;
 }
 
 i64 max_col_stride(tdb_schema* s) {
 	i64 res = 1;
-	for_each(col, s->columns)
-		if (col->stride > res)
-			res = col->stride;
+	for_each(col, s->columns) if (col->stride > res) res = col->stride;
 
 	return res;
 }
