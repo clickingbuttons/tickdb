@@ -71,6 +71,9 @@ static size_t string_len(const string* s) {
 	return s->is_pointer ? s->_size : 15 - s->space_left;
 }
 
+// Because typing "&" is annoying
+#define slen(s) string_len(&s)
+
 static size_t string_cap(const string* s) {
 	return s->is_pointer ? ((size_t)1 << s->capacity) - 1 : 15;
 }
@@ -134,10 +137,18 @@ static bool string_equals(const string* s1, const string* s2) {
 	return string_cmp(s1, s2) == 0;
 }
 
+static bool string_startswith(const string* s1, const string* s2) {
+	if (string_data(s1) == NULL && string_data(s2) != NULL ||
+		string_data(s1) != NULL && string_data(s2) == NULL ||
+		string_len(s2) > string_len(s1))
+		return false;
+
+	return memcmp(string_data(s1), string_data(s2), string_len(s2)) == 0;
+}
+
 // %p = *string
 __attribute__((format(printf, 2, 3))) static void
 string_printf(string* dest, const char* format, ...) {
-	*dest = string_empty;
 	va_list argp;
 	va_start(argp, format);
 	while (*format) {
@@ -166,6 +177,19 @@ string_printf(string* dest, const char* format, ...) {
 	va_end(argp);
 }
 
+static string string_readline_til(FILE* f, char delim) {
+	string res = string_empty;
+
+	char c;
+	while (fread(&c, 1, 1, f) == 1) {
+		if (c == delim || c == '\n')
+			break;
+		string_catn(&res, &c, 1);
+	}
+
+	return res;
+}
+
 // this leaks if the string is too long but it's very handy for short strings
 // "" causes a compile time error if x is not a string literal or too long
 // _Static_assert is a declaration, not an expression.  fizzie came up with this
@@ -179,6 +203,48 @@ string_printf(string* dest, const char* format, ...) {
 		string tmp = string_init(x);                                           \
 		&tmp;                                                                  \
 	})
+
+static void string_trim(string* x, const char* trimset) {
+	if (!trimset[0])
+		return;
+	char* dataptr = string_data(x);
+	char* orig = dataptr;
+
+	// this is similar to strspn/strpbrk but it works on binary data
+	unsigned char mask[32] = {0};
+
+#define checkbit(byte)                                                         \
+	(mask[(unsigned char)byte / 8] & 1 << (unsigned char)byte % 8)
+#define setbit(byte)                                                           \
+	(mask[(unsigned char)byte / 8] |= 1 << (unsigned char)byte % 8)
+	size_t i;
+	size_t slen = string_len(x);
+	size_t trimlen = strlen(trimset);
+
+	for (i = 0; i < trimlen; i++)
+		setbit(trimset[i]);
+	for (i = 0; i < slen; i++)
+		if (!checkbit(dataptr[i]))
+			break;
+	for (; slen > 0; slen--)
+		if (!checkbit(dataptr[slen - 1]))
+			break;
+	dataptr += i;
+	slen -= i;
+
+	// people reserved space to have a buffer on the heap
+	// *don't* free it!  just reuse it, don't shrink to in place if < 16 bytes
+
+	memmove(orig, dataptr, slen);
+	// don't dirty memory unless it's needed
+	if (orig[slen])
+		orig[slen] = 0;
+
+	if (x->is_pointer)
+		x->_size = slen;
+	else
+		x->space_left = 15 - slen;
+}
 
 #ifdef TEST_STRING
 #include <unistd.h>

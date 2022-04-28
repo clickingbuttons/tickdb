@@ -43,28 +43,31 @@ void generate_trade(trade* trade) {
 int main(void) {
 	signal(SIGINT, sig_handler);
 
-	tdb_schema* s =
-	 tdb_schema_init("trades", "%Y/%m/%d", TDB_SYMBOL16, "us_equities");
-	tdb_schema_add(s, TDB_TIMESTAMP64, "ts_participant");
-	tdb_schema_add(s, TDB_UINT64, "id");
-	tdb_schema_add(s, TDB_UINT64, "seq_id");
-	tdb_schema_add(s, TDB_UINT32, "size");
-	tdb_schema_add(s, TDB_CURRENCY, "price");
-	tdb_schema_add(s, TDB_UINT32, "cond");
-	tdb_schema_add(s, TDB_UINT8, "err");
-	tdb_schema_add(s, TDB_UINT8, "exchange");
-	tdb_schema_add(s, TDB_UINT8, "tape");
-
-	tdb_table* trades = tdb_table_init(s);
+	tdb_table* trades = tdb_table_open("trades");
+	if (trades == NULL) {
+		tdb_schema* s =
+		 tdb_schema_init("trades", "%Y/%m/%d", TDB_SYMBOL16, "us_equities");
+		tdb_schema_add(s, TDB_TIMESTAMP64, "ts_participant");
+		tdb_schema_add(s, TDB_UINT64, "id");
+		tdb_schema_add(s, TDB_UINT64, "seq_id");
+		tdb_schema_add(s, TDB_UINT32, "size");
+		tdb_schema_add(s, TDB_CURRENCY, "price");
+		tdb_schema_add(s, TDB_UINT32, "cond");
+		tdb_schema_add(s, TDB_UINT8, "err");
+		tdb_schema_add(s, TDB_UINT8, "exchange");
+		tdb_schema_add(s, TDB_UINT8, "tape");
+		trades = tdb_table_init(s);
+	}
 	if (trades == NULL) {
 		exit(1);
 	}
 
 	int num_trades = 10000000;
 	trade t;
+	srand(0);
 	for (int i = 1; keep_running && i <= num_trades; i++) {
 		generate_trade(&t);
-		// w;printf("i %d\n", i);
+		// printf("i %d\n", i);
 		if (i % 1000000 == 0)
 			printf("%d %s\n", i, t.sym);
 		if (tdb_table_write(trades, t.sym, t.ts))

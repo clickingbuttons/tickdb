@@ -6,6 +6,7 @@
 #include "util/vecmmap.h"
 
 typedef enum tdb_coltype {
+	TDB_INVALID,
 	TDB_TIMESTAMP, // User gives us this so we can figure it out ourselves
 	TDB_TIMESTAMP8,
 	TDB_TIMESTAMP16,
@@ -33,6 +34,7 @@ typedef struct tdb_col {
 	tdb_coltype type;
 	i64 stride;
 
+	// Used by table
 	mmaped_file file;
 	i64 block_size;
 } tdb_col;
@@ -44,10 +46,9 @@ typedef struct tdb_schema {
 	string ts_name;
 	string partition_fmt; // strftime format
 	string sym_name;
-	tdb_coltype sym_type;
 	string sym_universe;
+	tdb_coltype sym_type;
 	vec_tdb_col columns;
-	i64 block_size;
 } tdb_schema;
 
 API tdb_schema* tdb_schema_init(char* name, char* partition_fmt,
@@ -57,7 +58,10 @@ API void tdb_schema_add(tdb_schema* schema, tdb_coltype type,
 API void tdb_schema_free(tdb_schema* s);
 
 // Internal
+i64 block_size(i64 stride);
 i64 min_col_stride(tdb_schema* s);
 i64 max_col_stride(tdb_schema* s);
 i64 column_stride(tdb_coltype type);
 const char* column_ext(tdb_coltype type);
+void schema_serialize(tdb_schema* s, FILE* f);
+tdb_schema* schema_deserialize(FILE* f, const char* name);

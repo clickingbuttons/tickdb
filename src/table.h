@@ -28,6 +28,7 @@ typedef struct tdb_table {
 	string data_path;
 	pool block_pool;
 	hashmap blocks; // symbol (i32): vec_mmap_tickdb_block
+	string schema_path;
 	string symbol_path;
 	FILE* symbol_file;
 	vec_string symbols;
@@ -37,6 +38,7 @@ typedef struct tdb_table {
 } tdb_table;
 
 API tdb_table* tdb_table_init(tdb_schema* s);
+API tdb_table* tdb_table_open(const char* path);
 API i32 tdb_table_close(tdb_table* t);
 
 API i32 tdb_table_write(tdb_table* t, const char* symbol, i64 epoch_nanos);

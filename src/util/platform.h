@@ -47,7 +47,7 @@ static i32 mmaped_file_open(mmaped_file* res, const char* path) {
 	if (res->fd == -1 && errno == ENOENT)
 		res->fd = open(path, O_CREAT | O_RDWR, S_IRWXU);
 	if (res->fd == -1) {
-		TDB_ERRF("open %s", path);
+		TDB_ERRF_SYS("open %s", path);
 		return 2;
 	}
 

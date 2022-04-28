@@ -20,17 +20,42 @@ static bool hm_string_equals(const void* key1, const void* key2, void* _) {
 	return string_equals((string*)s1, (string*)s2);
 }
 
+static string get_data_path(const char* name) {
+	string res = string_empty;
+	string_printf(&res, "data/%s", name);
+
+	return res;
+}
+
+static string get_schema_path(const char* data_path) {
+	string res = string_empty;
+	string_printf(&res, "%s/_schema", data_path);
+
+	return res;
+}
+
 tdb_table* tdb_table_init(tdb_schema* s) {
 	tdb_table* res = calloc(sizeof(tdb_table), 1);
 	res->schema = s;
-
 	res->partition.name = string_empty;
-	string_printf(&res->data_path, "data/%p", &s->name);
-
+	res->data_path = get_data_path(sdata(s->name));
+	res->schema_path = get_schema_path(sdata(res->data_path));
+	res->symbol_path = string_empty;
 	string_printf(&res->symbol_path, "%p/%p.%s", &res->data_path,
 				  &s->sym_universe, column_ext(s->sym_type));
-	if (mkdirp(sdata(res->symbol_path)))
+	if (mkdirp(sdata(res->schema_path)))
 		return NULL;
+
+	FILE* schema_file = fopen(sdata(res->schema_path), "w");
+	if (schema_file == NULL) {
+		TDB_ERRF_SYS("open schema file %s", sdata(res->schema_path));
+		return NULL;
+	}
+	schema_serialize(s, schema_file);
+	if (fclose(schema_file)) {
+		TDB_ERRF_SYS("close schema file %s", sdata(res->schema_path));
+		return NULL;
+	}
 
 	res->symbol_file = fopen(sdata(res->symbol_path), "a");
 	if (res->symbol_file == NULL) {
@@ -44,6 +69,21 @@ tdb_table* tdb_table_init(tdb_schema* s) {
 	res->block_pool.used = 0;
 
 	return res;
+}
+
+tdb_table* tdb_table_open(const char* name) {
+	string data_path = get_data_path(name);
+	string schema_path = get_schema_path(sdata(data_path));
+
+	FILE* f = fopen(sdata(schema_path), "r");
+	if (f == NULL) {
+		TDB_ERRF_SYS("open schema file %s", sdata(schema_path));
+		return NULL;
+	}
+
+	tdb_schema* s = schema_deserialize(f, name);
+
+	return tdb_table_init(s);
 }
 
 static int cmp_blocks(const void* a, const void* b) {
@@ -224,8 +264,8 @@ i32 tdb_table_write(tdb_table* t, const char* symbol, i64 epoch_nanos) {
 			return 2;
 		hm_init(&t->blocks, sizeof(i32), sizeof(vec_tdb_block_pool_byte_offset),
 				NULL);
-		string path;
-		string_printf(&path, "%p/%p/blocks.unsorted", &t->data_path, &p->name);
+		string path = string_empty;
+		string_printf(&path, "%p/%p/_blocks.unsorted", &t->data_path, &p->name);
 		if (pool_init(&t->block_pool, sizeof(tdb_block) * 32, sdata(path)))
 			return 3;
 		string_free(&path);
