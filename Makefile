@@ -18,6 +18,7 @@ $(BUILD_DIR)/obj/%.c.o: %.c
 
 .PHONY: clean
 clean:
+	$(RM) -rf data
 	$(RM) -r $(BUILD_DIR)
 
 -include $(OBJS:.o=.d)
@@ -32,6 +33,8 @@ tools: $(BUILD_DIR)/$(LIBSO)
 
 .PHONY: test
 test: examples
-	#$(RM) -rf data
 	./build/examples/trades
 
+.PHONY: format
+format:
+	clang-format -i src/*.c src/*.h src/util/* tools/*.c examples/*.c

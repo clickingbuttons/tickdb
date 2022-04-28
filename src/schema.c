@@ -197,32 +197,34 @@ tdb_schema* schema_deserialize(FILE* f, const char* name) {
 		string_trim(&key, " \t");
 		if (feof(f))
 			break;
-		if (string_startswith(&key, string_tmp(column_prefix))) {
+		if (string_startswithc(&key, column_prefix)) {
 			size_t plen = sizeof(column_prefix) - 1;
 			tdb_col c = {
 			 .name = string_initn(sdata(key) + plen, slen(key) - plen - 1)};
 			vec_push(res->columns, c);
 		}
+		// printf("key %s\n", sdata(key));
 		if (*sdata(key) == '[' || slen(key) == 0)
 			continue;
 		string val = string_readline_til(f, '\n');
 		string_trim(&val, " \t");
+		// printf("val %s\n", sdata(val));
 		tdb_col* c = res->columns.data + res->columns.len - 1;
-		if (string_equals(&key, string_tmp("ts_name")))
+		if (string_equalsc(&key, "ts_name"))
 			res->ts_name = val;
-		else if (string_equals(&key, string_tmp("partition_fmt")))
+		else if (string_equalsc(&key, "partition_fmt"))
 			res->partition_fmt = val;
-		else if (string_equals(&key, string_tmp("sym_name")))
+		else if (string_equalsc(&key, "sym_name"))
 			res->sym_name = val;
-		else if (string_equals(&key, string_tmp("sym_universe")))
+		else if (string_equalsc(&key, "sym_universe"))
 			res->sym_universe = val;
-		else if (string_equals(&key, string_tmp("sym_type")))
+		else if (string_equalsc(&key, "sym_type"))
 			res->sym_type = atoi(sdata(val));
-		else if (string_equals(&key, string_tmp("type")))
+		else if (string_equalsc(&key, "type"))
 			c->type = atoi(sdata(val));
-		else if (string_equals(&key, string_tmp("stride")))
+		else if (string_equalsc(&key, "stride"))
 			c->stride = atoi(sdata(val));
-		else if (string_equals(&key, string_tmp("block_size")))
+		else if (string_equalsc(&key, "block_size"))
 			c->block_size = atoi(sdata(val));
 		else
 			string_free(&val);

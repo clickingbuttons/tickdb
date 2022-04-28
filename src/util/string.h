@@ -116,6 +116,15 @@ static void string_catc(string* a, const char* b) {
 	string_catn(a, b, strlen(b));
 }
 
+static int string_cmpc(const string* a, const char* b) {
+	size_t asize = string_len(a);
+	size_t bsize = strlen(b);
+	if (asize == bsize)
+		return memcmp(string_data(a), b, asize);
+
+	return asize - bsize;
+}
+
 static int string_cmp(const string* a, const string* b) {
 	size_t asize = string_len(a);
 	size_t bsize = string_len(b);
@@ -130,11 +139,29 @@ static u64 string_hash(const string* s) {
 	return res;
 }
 
+static bool string_equalsc(const string* s1, const char* s2) {
+	if (string_data(s1) == NULL && s2 != NULL ||
+		string_data(s1) != NULL && s2 == NULL)
+		return false;
+	return string_cmpc(s1, s2) == 0;
+}
+
 static bool string_equals(const string* s1, const string* s2) {
 	if (string_data(s1) == NULL && string_data(s2) != NULL ||
 		string_data(s1) != NULL && string_data(s2) == NULL)
 		return false;
 	return string_cmp(s1, s2) == 0;
+}
+
+static bool string_startswithc(const string* s1, const char* s2) {
+	if (string_data(s1) == NULL && s2 != NULL ||
+		string_data(s1) != NULL && s2 == NULL)
+		return false;
+	size_t s2len = strlen(s2);
+	if (s2len > string_len(s1))
+		return false;
+
+	return memcmp(string_data(s1), s2, s2len) == 0;
 }
 
 static bool string_startswith(const string* s1, const string* s2) {
@@ -189,20 +216,6 @@ static string string_readline_til(FILE* f, char delim) {
 
 	return res;
 }
-
-// this leaks if the string is too long but it's very handy for short strings
-// "" causes a compile time error if x is not a string literal or too long
-// _Static_assert is a declaration, not an expression.  fizzie came up with this
-// hack
-#define string_tmp(x)                                                          \
-	({                                                                         \
-		(void)((struct {                                                       \
-			_Static_assert(sizeof x <= 16, "it's too big");                    \
-			int dummy;                                                         \
-		}){1});                                                                \
-		string tmp = string_init(x);                                           \
-		&tmp;                                                                  \
-	})
 
 static void string_trim(string* x, const char* trimset) {
 	if (!trimset[0])

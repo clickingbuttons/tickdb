@@ -45,6 +45,7 @@ int main(void) {
 
 	tdb_table* trades = tdb_table_open("trades");
 	if (trades == NULL) {
+		printf("making new table\n");
 		tdb_schema* s =
 		 tdb_schema_init("trades", "%Y/%m/%d", TDB_SYMBOL16, "us_equities");
 		tdb_schema_add(s, TDB_TIMESTAMP64, "ts_participant");
