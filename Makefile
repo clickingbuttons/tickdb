@@ -35,6 +35,6 @@ tools: $(BUILD_DIR)/$(LIBSO)
 test: examples
 	./build/examples/trades
 
-.PHONY: format
-format:
+.PHONY: fmt
+fmt:
 	clang-format -i src/*.c src/*.h src/util/* tools/*.c examples/*.c
