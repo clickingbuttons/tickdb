@@ -4,11 +4,6 @@
 #include <limits.h>
 
 #define COL_DEFAULT_CAP 10000000
-// 8-byte column: 512k
-// 4-byte column: 256k
-// 2-byte column: 128k
-// 1-byte column: 64k
-#define MIN_BLOCK_SIZE KIBIBYTES(64)
 
 static u64 hm_string_hash(const void* key, size_t _, void* __) {
 	return string_hash((string*)key);
@@ -170,16 +165,27 @@ static i32 tdb_table_write_block_index(tdb_table* t) {
 	return 0;
 }
 
+i32 tdb_table_flush(tdb_table* t) {
+	for_each(col, t->schema->columns)
+		if (mmaped_file_close(&col->file))
+			return 100;
+	return tdb_table_write_block_index(t);
+}
+
 i32 tdb_table_close(tdb_table* t) {
-	tdb_table_write_block_index(t);
+	if (tdb_table_flush(t))
+		return 1;
 	tdb_schema_free(t->schema);
 	string_free(&t->data_path);
 
 	string_free(&t->partition.name);
 	hm_iter(&t->blocks) vec_free((vec_tdb_block_pool_byte_offset*)val);
 	hm_free(&t->blocks);
+	if (fclose(t->symbol_file)) {
+		TDB_ERRF_SYS("close symbol file %s", sdata(t->symbol_path));
+		return 2;
+	}
 	string_free(&t->symbol_path);
-	fclose(t->symbol_file);
 	vec_free(&t->symbols);
 	hm_free(&t->symbol_uids);
 	free(t);
@@ -218,9 +224,8 @@ static tdb_block* get_block(tdb_table* t, i32 symbol, i64 nanos) {
 
 	for_each(offset, *blocks) {
 		tdb_block* b = (tdb_block*)(t->block_pool.file.data + *offset);
-		if (nanos >= b->ts_min && b->len < MIN_BLOCK_SIZE) {
+		if (nanos >= b->ts_min && b->len < block_size(1))
 			return b;
-		}
 	}
 
 	tdb_block* new_block = pool_get(&t->block_pool, sizeof(tdb_block));
@@ -317,3 +322,70 @@ i32 tdb_table_write_data(tdb_table* t, void* data, i64 size) {
 	t->col_index = (t->col_index + 1) % t->schema->columns.len;
 	return 0;
 }
+
+tdb_iter* tdb_table_iter_ticker(
+ tdb_table* t,
+ const char* sym,
+ u64 start,
+ u64 end,
+ const char** cols,
+ size_t cols_len) {
+	tdb_iter* res = calloc(1, sizeof(tdb_iter));
+
+	i32 sym_id = tdb_table_stoi(t, sym);
+
+	tdb_block* first_match;
+	if (sym == NULL) {
+		 first_match = (tdb_block*) t->block_pool.file.data;
+	} else {
+		size_t len = t->block_pool.file.size / sizeof(tdb_block);
+		first_match = bsearch(&sym_id, t->block_pool.file.data, len, sizeof(tdb_block), cmp_blocks);
+		if (first_match == NULL) {
+			// invalid ticker
+			return NULL;
+		}
+		// backup to first block
+		i32 sym = first_match->symbol;
+		while (sym == first_match->symbol) {
+			first_match -= 1;
+		}
+	}
+
+	return res;
+}
+
+tdb_iter* tdb_table_iter(
+ tdb_table* t,
+ const char** syms,
+ size_t syms_len,
+ u64 start,
+ u64 end,
+ const char** cols,
+ size_t cols_len) {
+	tdb_iter* res = calloc(1, sizeof(tdb_iter));
+	res->table = t;
+
+	vec_i32 sym_ids = { 0 };
+	for (int i = 0; i < syms_len; i++) {
+		const char* symbol = *(syms + i);
+		vec_push(sym_ids, tdb_table_stoi(t, symbol));
+	}
+
+	vec_tdb_block blocks = { 0 };
+	size_t len = t->block_pool.file.size / sizeof(tdb_block);
+	for (int i = 0; i < len; i++) {
+		tdb_block* b = (tdb_block*)(t->block_pool.file.data + i);
+		// TODO: aux hash map
+		for_each(id, sym_ids)
+			if (b->symbol == *id)
+				vec_push(blocks, *b);
+	}
+
+	return res;
+}
+
+void tdb_iter_free(tdb_iter *it) { free(it); }
+
+tdb_arr* tdb_table_read(tdb_iter* it) {
+}
+

@@ -83,8 +83,27 @@ int main(void) {
 		tdb_table_write_u8(trades, t.exchange);
 		tdb_table_write_u8(trades, t.tape);
 	}
+
+	tdb_table_flush(trades);
+
+	printf("reading\n");
+	u32 count = 0;
+	f64 sum_price = 0.0;
+	const char* cols[] = { "price" };
+	tdb_iter* iter = tdb_table_iter(trades, NULL, 0, 1000, cols);
+	printf("iter len %lu\n", iter->len);
+	while (tdb_iter_next(iter)) {
+		tdb_arr_f64* price = tdb_iter_next_f64(iter);
+		count += price->len;
+		for (int j = 0; j < price->len; j++)
+			sum_price += price->data[j];
+	}
+	printf("count %u sum_price %f\n", count, sum_price);
+	
+	tdb_iter_free(iter);
 	if (tdb_table_close(trades))
 		exit(1);
 
 	return 0;
 }
+

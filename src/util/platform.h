@@ -32,10 +32,10 @@ static i32 mkdirp(const char* path) {
 }
 
 typedef struct mmaped_file {
-	string path;
-	i32 fd;
 	i64 size;
 	char* data;
+	i32 fd;
+	string path;
 } mmaped_file;
 
 static i32 mmaped_file_open(mmaped_file* res, const char* path) {
