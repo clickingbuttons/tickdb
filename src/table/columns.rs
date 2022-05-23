@@ -2,7 +2,7 @@ use crate::table::{ColumnFile, Table, get_col_path};
 use std::fs::OpenOptions;
 use std::cmp::max;
 
-const DEFAULT_ROWS: usize = 100_000_000;
+const DEFAULT_ROWS: usize = 1_000_000;
 
 impl Table {
 	pub fn open_column(&self, i: usize) -> ColumnFile {
@@ -19,11 +19,11 @@ impl Table {
 		let init_size = max(p.row_count, DEFAULT_ROWS) * c.stride;
 		file
 			.set_len(init_size as u64)
-			.unwrap_or_else(|_| panic!("Could not truncate {:?} to {}", path, init_size));
+			.unwrap_or_else(|e| panic!("Could not truncate {:?} to {}: {}", path, init_size, e));
 		unsafe {
 			let data = memmap::MmapOptions::new()
 				.map_mut(&file)
-				.unwrap_or_else(|e| panic!("Could not mmap {:?}: {:?}", path, e));
+				.unwrap_or_else(|e| panic!("Could not mmap {:?}: {}", path, e));
 
 			ColumnFile {
 				file,

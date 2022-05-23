@@ -59,7 +59,26 @@ impl Table {
 			self.partition_index = self.get_partition(ts);
 			self.open_columns();
 		}
-		self.partitions[self.partition_index].ts_range.max = ts;
+
+		let p = &mut self.partitions[self.partition_index];
+
+    let f = self.schema.columns[self.column_index].file.as_mut().expect("column open");
+		if f.data.len() <= p.row_count * (self.schema.columns[0].stride) {
+			for c in &mut self.schema.columns {
+				let file = c.file.as_mut().expect("column open");
+				let size = file.data.len();
+				drop(&file.data);
+				//println!("{} grow {} -> {}", c.name, size, size * 2);
+				file.file.set_len(size as u64 * 2)
+					.unwrap_or_else(|e| panic!("Could not truncate {:?} to {}: {}", file, size * 2, e));
+				unsafe {
+					file.data = memmap::MmapOptions::new()
+						.map_mut(&file.file)
+						.unwrap_or_else(|_| panic!("Could not mmapp after grow {:?}", file));
+				}
+			}
+		}
+		p.ts_range.max = ts;
 		self.put_i64(ts);
 	}
 
