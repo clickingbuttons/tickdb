@@ -64,7 +64,7 @@ fn initialize_agg1d(index: i64) -> Table {
       Column::new("volume", ColumnType::U64),
     ]);
 
-  let mut agg1d = Table::create_or_open(schema).expect("Could not open table");
+  let mut agg1d = Table::create(schema).expect("Could not open table");
 	let row_count = ROW_COUNT;
   let rows = generate_rows(row_count, &fastrand::Rng::with_seed(100));
   for r in rows.iter() {
@@ -88,10 +88,10 @@ fn initialize_agg1d(index: i64) -> Table {
 
 fn get_f64_sum(slice: &[f32]) -> f64 { slice.iter().map(|v| *v as f64).sum::<f64>() }
 
-//#[test]
-//fn write() {
-//  initialize_agg1d(0);
-//}
+#[test]
+fn write() {
+  initialize_agg1d(0);
+}
 
 #[test]
 fn sum_ohlcv_rust() {

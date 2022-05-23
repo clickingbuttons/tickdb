@@ -9,8 +9,7 @@ use crate::table::meta::read_meta;
 use crate::schema::*;
 use serde::{Deserialize, Serialize};
 use std::{
-  fs::create_dir_all,
-  io::{Error, ErrorKind},
+  fs::{create_dir_all, remove_dir_all},
   path::PathBuf
 };
 use paths::*;
@@ -44,18 +43,12 @@ pub struct Table {
 impl Table {
   pub fn create(schema: Schema) -> std::io::Result<Table> {
     let data_path = get_data_path(&schema.name);
-    create_dir_all(&data_path).unwrap_or_else(|_| panic!("Cannot create dir {:?}", data_path));
     let meta_path = get_meta_path(&schema.name);
 
     if meta_path.exists() {
-      return Err(Error::new(
-        ErrorKind::Other,
-        format!(
-          "Table {name:?} already exists. Try Table::open({name:?}) instead",
-          name = schema.name
-        )
-      ));
+			remove_dir_all(&data_path).expect(&format!("rm -rf {:?}", data_path));
     }
+    create_dir_all(&data_path).unwrap_or_else(|_| panic!("Cannot create dir {:?}", data_path));
 
     let mut table = Table {
       schema,
