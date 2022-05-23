@@ -4,3 +4,8 @@ build
 data
 .cache
 compile_commands.json
+
+
+# Added by cargo
+
+/target
