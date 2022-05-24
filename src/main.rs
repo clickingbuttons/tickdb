@@ -61,13 +61,16 @@ fn main() {
           request.parse(&mut buffer).unwrap();
 
           let response = handle_request(&request);
-          let header = format!(
-            "{:?} {} {}\r\n\r\n",
+          let statusline = format!(
+            "{:?} {} {}\r\nContent-Length: {}\r\n",
             response.version(),
             response.status().as_str(),
-            response.status().canonical_reason().unwrap_or("")
+            response.status().canonical_reason().unwrap_or(""),
+						response.body().len()
           );
-          stream.write(header.as_bytes()).unwrap();
+          stream.write(statusline.as_bytes()).unwrap();
+					//println!("{:?}", response.headers());
+					stream.write(b"\r\n").unwrap();
           stream.write(response.body()).unwrap();
         }
       }
