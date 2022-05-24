@@ -1,6 +1,6 @@
 use crate::{
   schema::Column,
-  table::{Partition, Table, ColumnFile}
+  table::{ColumnFile, Partition, Table}
 };
 use std::{fmt::Debug, slice::from_raw_parts_mut};
 
@@ -15,13 +15,18 @@ impl Table {
           .iter()
           .position(|col| &col.name == col_name)
           .unwrap_or_else(|| panic!("Column {} does not exist", col_name));
-				&self.schema.columns[index]
+        &self.schema.columns[index]
       })
       .collect::<Vec<&'a Column>>()
   }
 
-  /* Inclusive of from and to */
-  pub fn partition_iter<'a>(&'a self, from_ts: i64, to_ts: i64, columns: Vec<&str>) -> PartitionIterator<'a> {
+  // Inclusive of from and to
+  pub fn partition_iter<'a>(
+    &'a self,
+    from_ts: i64,
+    to_ts: i64,
+    columns: Vec<&str>
+  ) -> PartitionIterator<'a> {
     assert!(to_ts >= from_ts);
     let partitions = self
       .partitions
@@ -35,15 +40,15 @@ impl Table {
         (to_ts >= p.ts_range.min && to_ts <= p.ts_range.max)
       })
       .collect::<Vec<_>>();
-		//println!("partitions {:?}", partitions);
+    // println!("partitions {:?}", partitions);
     PartitionIterator {
       table: self,
       columns: self.get_union(columns),
-			column_files: Vec::new(),
+      column_files: Vec::new(),
       from_ts,
       to_ts,
       partitions,
-      partition_index: 0,
+      partition_index: 0
     }
   }
 }
@@ -91,38 +96,36 @@ impl<'a> PartitionColumn<'a> {
 
 #[derive(Debug)]
 pub struct PartitionIterator<'a> {
-	table: &'a Table,
+  table: &'a Table,
   columns: Vec<&'a Column>,
-	column_files: Vec<ColumnFile>,
+  column_files: Vec<ColumnFile>,
   from_ts: i64,
   to_ts: i64,
   pub partitions: Vec<&'a Partition>,
-  partition_index: usize,
+  partition_index: usize
 }
 
 fn binary_search_seek(haystack: &[i64], needle: i64, seek_start: bool) -> Result<usize, usize> {
-		let mut index = haystack.binary_search(&needle);
-		if let Ok(ref mut i) = index {
-			// Seek to beginning/end
-			if seek_start {
-				while *i > 0 && haystack[*i - 1] == needle {
-					*i -= 1;
-				}
-			} else {
-				while *i < haystack.len() - 1 && haystack[*i + 1] == needle {
-					*i += 1;
-				}
-				// This is going to be used as an end index
-				*i += 1;
-			}
-		}
-		index
+  let mut index = haystack.binary_search(&needle);
+  if let Ok(ref mut i) = index {
+    // Seek to beginning/end
+    if seek_start {
+      while *i > 0 && haystack[*i - 1] == needle {
+        *i -= 1;
+      }
+    } else {
+      while *i < haystack.len() - 1 && haystack[*i + 1] == needle {
+        *i += 1;
+      }
+      // This is going to be used as an end index
+      *i += 1;
+    }
+  }
+  index
 }
 
 fn find_ts(ts_column: &ColumnFile, row_count: usize, needle: i64, seek_start: bool) -> usize {
-	let data = unsafe {
-		from_raw_parts_mut(ts_column.data.as_ptr() as *mut i64, row_count)
-	};
+  let data = unsafe { from_raw_parts_mut(ts_column.data.as_ptr() as *mut i64, row_count) };
   let search_results = binary_search_seek(data, needle, seek_start);
   match search_results {
     Ok(n) => n,
@@ -139,43 +142,43 @@ impl<'a> Iterator for PartitionIterator<'a> {
     }
     let p = self.partitions.get(self.partition_index)?;
     let start_row = if self.partition_index == 0 {
-			let ts_column = self.table.open_column(0);
+      let ts_column = self.table.open_column(0);
       find_ts(&ts_column, p.row_count, self.from_ts, true)
     } else {
       0
     };
     let end_row = if self.partition_index == self.partitions.len() - 1 {
-			let ts_column = self.table.open_column(0);
+      let ts_column = self.table.open_column(0);
       find_ts(&ts_column, p.row_count, self.to_ts, false)
     } else {
       p.row_count
     };
-		let row_count = end_row - start_row;
-		//println!("from_ts {}, to_ts {}", self.from_ts, self.to_ts);
-		//println!("start_row {}, end_row {}", start_row, end_row);
+    let row_count = end_row - start_row;
+    // println!("from_ts {}, to_ts {}", self.from_ts, self.to_ts);
+    // println!("start_row {}, end_row {}", start_row, end_row);
     let data_columns = self
       .columns
       .iter()
       .map(|column| {
-        let table_column_index = self.table.schema.columns
-					.iter()
-					.position(|c| c.name == column.name)
-					.expect(&column.name);
-				let table_column = &self.table.schema.columns[table_column_index];
-				let col_file = self.table.open_column(table_column_index);
-				//println!("col_file {} {:?}", table_column_index, col_file);
+        let table_column_index = self
+          .table
+          .schema
+          .columns
+          .iter()
+          .position(|c| c.name == column.name)
+          .expect(&column.name);
+        let table_column = &self.table.schema.columns[table_column_index];
+        let col_file = self.table.open_column(table_column_index);
+        // println!("col_file {} {:?}", table_column_index, col_file);
         let slice = unsafe {
           from_raw_parts_mut(
-            col_file
-              .data
-              .as_ptr()
-              .add(start_row * table_column.stride) as *mut u8,
+            col_file.data.as_ptr().add(start_row * table_column.stride) as *mut u8,
             row_count * table_column.stride
           )
         };
-				//println!("slice {:?}", slice);
-				// keep ref alive
-				self.column_files.push(col_file);
+        // println!("slice {:?}", slice);
+        // keep ref alive
+        self.column_files.push(col_file);
 
         PartitionColumn {
           slice,
@@ -193,58 +196,25 @@ impl<'a> Iterator for PartitionIterator<'a> {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+  use super::*;
 
   #[test]
   fn test_binary_search_seek() {
     let data = [1, 2, 2, 2, 2, 2, 3, 4, 5, 5, 5, 5, 5, 5, 6, 7, 8, 10];
-    assert_eq!(
-      binary_search_seek(&data, 2, true),
-      Ok(1)
-    );
-    assert_eq!(
-      binary_search_seek(&data, 2, false),
-      Ok(5 + 1)
-    );
-    assert_eq!(
-      binary_search_seek(&data, 5, true),
-      Ok(8)
-    );
-    assert_eq!(
-      binary_search_seek(&data, 5, false),
-      Ok(13 + 1)
-    );
-    assert_eq!(
-      binary_search_seek(&data, 9, false),
-      Err(data.len() - 1)
-    );
-    assert_eq!(
-      binary_search_seek(&data, 10, false),
-      Ok(data.len())
-    );
-    assert_eq!(
-      binary_search_seek(&data, 21, false),
-      Err(data.len())
-    );
+    assert_eq!(binary_search_seek(&data, 2, true), Ok(1));
+    assert_eq!(binary_search_seek(&data, 2, false), Ok(5 + 1));
+    assert_eq!(binary_search_seek(&data, 5, true), Ok(8));
+    assert_eq!(binary_search_seek(&data, 5, false), Ok(13 + 1));
+    assert_eq!(binary_search_seek(&data, 9, false), Err(data.len() - 1));
+    assert_eq!(binary_search_seek(&data, 10, false), Ok(data.len()));
+    assert_eq!(binary_search_seek(&data, 21, false), Err(data.len()));
 
     let data = [1];
-    assert_eq!(
-      binary_search_seek(&data, 1, true),
-      Ok(0)
-    );
-    assert_eq!(
-      binary_search_seek(&data, 1, false),
-      Ok(1)
-    );
+    assert_eq!(binary_search_seek(&data, 1, true), Ok(0));
+    assert_eq!(binary_search_seek(&data, 1, false), Ok(1));
 
     let data = [];
-    assert_eq!(
-      binary_search_seek(&data, 1, true),
-      Err(0)
-    );
-    assert_eq!(
-      binary_search_seek(&data, 1, false),
-      Err(0)
-    );
+    assert_eq!(binary_search_seek(&data, 1, true), Err(0));
+    assert_eq!(binary_search_seek(&data, 1, false), Err(0));
   }
 }

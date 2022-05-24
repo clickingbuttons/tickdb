@@ -53,19 +53,18 @@ fn generate_rows(row_count: usize, rng: &fastrand::Rng) -> Vec<OHLCV> {
 }
 
 fn initialize_agg1d(index: i64) -> Table {
-  let schema = Schema::new(&format!("agg1d{}", index), "%Y")
-    .add_cols(vec![
-      Column::new("sym", ColumnType::Symbol),
-      Column::new("open", ColumnType::F32),
-      Column::new("high", ColumnType::F32),
-      Column::new("low", ColumnType::F32),
-      Column::new("close", ColumnType::F32),
-      Column::new("close_un", ColumnType::F32),
-      Column::new("volume", ColumnType::U64),
-    ]);
+  let schema = Schema::new(&format!("agg1d{}", index), "%Y").add_cols(vec![
+    Column::new("sym", ColumnType::Symbol),
+    Column::new("open", ColumnType::F32),
+    Column::new("high", ColumnType::F32),
+    Column::new("low", ColumnType::F32),
+    Column::new("close", ColumnType::F32),
+    Column::new("close_un", ColumnType::F32),
+    Column::new("volume", ColumnType::U64),
+  ]);
 
   let mut agg1d = Table::create(schema).expect("Could not open table");
-	let row_count = ROW_COUNT;
+  let row_count = ROW_COUNT;
   let rows = generate_rows(row_count, &fastrand::Rng::with_seed(100));
   for r in rows.iter() {
     let ts = match agg1d.get_last_ts() {
@@ -83,15 +82,13 @@ fn initialize_agg1d(index: i64) -> Table {
   }
   agg1d.flush();
 
-	agg1d
+  agg1d
 }
 
 fn get_f64_sum(slice: &[f32]) -> f64 { slice.iter().map(|v| *v as f64).sum::<f64>() }
 
 #[test]
-fn write() {
-  initialize_agg1d(0);
-}
+fn write() { initialize_agg1d(0); }
 
 #[test]
 fn sum_ohlcv_rust() {
@@ -103,21 +100,22 @@ fn sum_ohlcv_rust() {
     "ts", "open", "high", "low", "close", "volume",
   ]);
   for partition in partitions {
-    sums.0 += partition[0]
-      .get_u64()
-      .iter()
-      .sum::<u64>();
-		//println!("0");
+    sums.0 += partition[0].get_u64().iter().sum::<u64>();
+    // println!("0");
     sums.1 += get_f64_sum(partition[1].get_f32());
-		//println!("1");
+    // println!("1");
     sums.2 += get_f64_sum(partition[2].get_f32());
-		//println!("2");
+    // println!("2");
     sums.3 += get_f64_sum(partition[3].get_f32());
-		//println!("3");
+    // println!("3");
     sums.4 += get_f64_sum(partition[4].get_f32());
-		//println!("4");
-    sums.5 += partition[5].get_u32().iter().map(|v| *v as u64).sum::<u64>();
-		//println!("5");
+    // println!("4");
+    sums.5 += partition[5]
+      .get_u32()
+      .iter()
+      .map(|v| *v as u64)
+      .sum::<u64>();
+    // println!("5");
     total += partition[5].get_u64().iter().len();
   }
   assert_eq!(sums.0, 107869104152250);
