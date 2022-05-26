@@ -13,16 +13,16 @@ pub struct Query {
   pub query: String,
 }
 
-pub fn run_query<'a>(query: &Query) -> std::io::Result<String> {
-	Ok(format!("{} {} {} {}", query.table, query.from, query.to, query.query))
+pub fn run_query<'a>(query: &Query) -> std::io::Result<Vec<u8>> {
+	Ok(Vec::from(format!("{} {} {} {}", query.table, query.from, query.to, query.query)))
 }
 
-pub fn handle_query<'a>(_req: &Request, query: &[u8]) -> String {
+pub fn handle_query<'a>(_req: &Request, query: &[u8]) -> Vec<u8> {
 	match serde_json::from_slice::<Query>(query) {
-		Err(err) => format!("error parsing query: {}\n", err.to_string()),
+		Err(err) => Vec::from(format!("error parsing query: {}\n", err.to_string())),
 		Ok(mut query) => match run_query(&mut query) {
-			Ok(_value) => format!("query response\n"),
-			Err(err) => format!("error running query: {}\n", err.to_string()),
+			Ok(value) => value,
+			Err(err) => Vec::from(format!("error running query: {}\n", err.to_string())),
 		}
 	}
 }

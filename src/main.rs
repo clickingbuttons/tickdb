@@ -18,25 +18,22 @@ const BUFFER_SIZE: usize = 1 << 16;
 
 extern "C" fn handle_sigint(_: i32) { exit(0); }
 
-fn handle_request(req: &Request, body: &[u8]) -> Response<String> {
+fn handle_request(req: &Request, body: &[u8]) -> Response<Vec<u8>> {
   let builder = Response::builder();
   match req.method {
     None => builder
       .status(400)
-      .body("expected request method\n".to_string())
+      .body(Vec::from("expected request method\n"))
       .unwrap(),
     Some(m) => match m {
-      "GET" => builder.body("tickdb here\n".to_string()).unwrap(),
-      "POST" => {
-				let resp = handle_query(req, body);
-				builder.body(resp).unwrap()
-			},
-      _ => builder.status(404).body("not found\n".to_string()).unwrap()
+      "GET" => builder.body(Vec::from("tickdb here\n")).unwrap(),
+      "POST" => builder.body(handle_query(req, body)).unwrap(),
+      _ => builder.status(404).body(Vec::from("not found\n")).unwrap()
     }
   }
 }
 
-fn write_http_header(stream: &mut TcpStream, response: &Response<String>) {
+fn write_http_header(stream: &mut TcpStream, response: &Response<Vec<u8>>) {
 	let mut header = format!(
 		"{:?} {} {}\r\nContent-Length: {}\r\n",
 		response.version(),
@@ -83,7 +80,7 @@ fn main() {
 
           let response = handle_request(&request, body);
 					write_http_header(stream, &response);
-          stream.write(response.body().as_bytes()).unwrap();
+          stream.write(response.body()).unwrap();
         }
       }
       Ok(ForkResult::Parent { child: _ }) => {}
