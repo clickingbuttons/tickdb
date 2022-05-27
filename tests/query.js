@@ -3,18 +3,10 @@ function sumArr(arr) {
 }
 
 var sum = 0
-function scan(open) {
-	//sum += sumArr(open);
-	for (var i = 0; i < 12000; i++) {
-		sum += open[i];
-	}
+function scan(open, high, low, close) {
+	console.log('scan run', open.legnth, high.length, low.length, close.length);
+	sum += sumArr(open) + sumArr(high) + sumArr(low) + sumArr(close)
+
 	return sum;
 }
-
-//function scan(open, high, low, close, volume) {
-//	console.log('scan run', open.legnth, high.length, low.length, close.length, volume.length);
-//	sum += sumArr(open) + sumArr(high) + sumArr(low) + sumArr(close) + sumArr(volume);
-//
-//	return sum;
-//}
 

@@ -10,9 +10,9 @@ use paths::*;
 use serde::{Deserialize, Serialize};
 use std::{
   fs::{create_dir_all, remove_dir_all},
+  io::{Error, ErrorKind, Result},
   path::PathBuf
 };
-use std::io::{Result, Error, ErrorKind};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MinMax<T> {
@@ -65,9 +65,9 @@ impl Table {
   pub fn open<'b>(name: &'b str) -> Result<Table> {
     let meta_path = get_meta_path(&name);
     let mut res = read_meta(&meta_path).map_err(|e| {
-			let msg = format!("could not open table {}: {}", name, e);
-			Error::new(ErrorKind::NotFound, msg)
-		})?;
+      let msg = format!("could not open table {}: {}", name, e);
+      Error::new(ErrorKind::NotFound, msg)
+    })?;
     res.meta_path = meta_path;
     res.schema.name = String::from(name);
 

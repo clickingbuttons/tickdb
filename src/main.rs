@@ -7,7 +7,7 @@ use nix::{
 use std::{
   env::var,
   io::{Read, Write},
-  net::{TcpStream, TcpListener},
+  net::{TcpListener, TcpStream},
   process::exit
 };
 mod server;
@@ -40,27 +40,25 @@ fn handle_request(req: &Request, body: &[u8]) -> Response<Vec<u8>> {
 }
 
 fn write_http_header(stream: &mut TcpStream, response: &Response<Vec<u8>>) {
-	let mut header = format!(
-		"{:?} {} {}\r\nContent-Length: {}\r\n",
-		response.version(),
-		response.status().as_str(),
-		response.status().canonical_reason().unwrap_or(""),
-		response.body().len()
-	);
-	for (key, val) in response.headers() {
-		header.push_str(&format!("{}: {}\r\n", key, val.to_str().unwrap()));
-	}
-	header.push_str("\r\n");
-	stream.write(header.as_bytes()).unwrap();
+  let mut header = format!(
+    "{:?} {} {}\r\nContent-Length: {}\r\n",
+    response.version(),
+    response.status().as_str(),
+    response.status().canonical_reason().unwrap_or(""),
+    response.body().len()
+  );
+  for (key, val) in response.headers() {
+    header.push_str(&format!("{}: {}\r\n", key, val.to_str().unwrap()));
+  }
+  header.push_str("\r\n");
+  stream.write(header.as_bytes()).unwrap();
 }
 
 fn main() {
   let listener = TcpListener::bind(format!("0.0.0.0:{}", PORT)).unwrap();
 
-	init_scripting();
-
   let num_procs = var("TICKDB_NUM_PROCS")
-    .unwrap_or("1".to_string())
+    .unwrap_or("2".to_string())
     .parse::<i64>()
     .unwrap();
 
@@ -68,6 +66,8 @@ fn main() {
     match unsafe { fork() } {
       Ok(ForkResult::Child) => {
         println!("fork {}", i);
+        init_scripting();
+
         let sig_action = signal::SigAction::new(
           signal::SigHandler::Handler(handle_sigint),
           signal::SaFlags::SA_NODEFER,
@@ -81,14 +81,14 @@ fn main() {
           let mut headers = vec![httparse::EMPTY_HEADER; 20];
           let stream = &mut stream.unwrap();
           let request_size = stream.read(buffer).unwrap();
-					//println!("handle_request {}", std::str::from_utf8(&buffer[..request_size]).unwrap());
+          // println!("handle_request {}", std::str::from_utf8(&buffer[..request_size]).unwrap());
 
           let mut request = Request::new(&mut headers[..]);
           let body_offset: usize = request.parse(buffer).unwrap().unwrap();
-					let body = &buffer[body_offset..request_size];
+          let body = &buffer[body_offset..request_size];
 
           let response = handle_request(&request, body);
-					write_http_header(stream, &response);
+          write_http_header(stream, &response);
           stream.write(response.body()).unwrap();
         }
       }
@@ -97,5 +97,6 @@ fn main() {
     }
   }
   drop(listener);
+
   waitpid(Some(Pid::from_raw(-1)), None).unwrap();
 }
