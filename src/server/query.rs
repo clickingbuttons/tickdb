@@ -1,7 +1,10 @@
+use std::ffi::c_void;
 use serde::{de, Deserialize};
 use httparse::Request;
 use chrono::{DateTime, NaiveDate};
 use std::io::{Error, ErrorKind};
+use tickdb::table::Table;
+use tickdb::schema::ColumnType;
 
 #[derive(Deserialize)]
 pub struct Query {
@@ -13,16 +16,116 @@ pub struct Query {
   pub query: String,
 }
 
+const SCAN_FN_NAME: &str = "scan";
+const RUNTIME_FN_NAME: &str = "tickdb_get_params";
+unsafe extern "C" fn backing_store_deleter(
+	_data: *mut c_void,
+	_byte_length: usize,
+	_deleter_data: *mut c_void,
+) { }
+
+// ColumnType::F64 => thing!(scope, buffer, buffer_len, f64, Float64Array),
+macro_rules! toArrayBufferView {
+	($scope: expr, $buffer: expr, $len: expr, $_type: ty, $node_type: ident) => {
+		v8::$node_type::new(
+			$scope,
+			$buffer,
+			0,
+			$len / std::mem::size_of::<$_type>()
+		).unwrap().into()
+	}
+}
+
+// https://v8.dev/docs/embed
 pub fn run_query<'a>(query: &Query) -> std::io::Result<Vec<u8>> {
-	Ok(Vec::from(format!("{} {} {} {}", query.table, query.from, query.to, query.query)))
+	let table = Table::open(&query.table)?;
+	let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
+	let handle_scope = &mut v8::HandleScope::new(isolate);
+	let context = v8::Context::new(handle_scope);
+	let scope = &mut v8::ContextScope::new(handle_scope, context);
+	let runtime = v8::String::new(scope, include_str!("./runtime.js")).unwrap();
+	let script = v8::Script::compile(scope, runtime, None).unwrap();
+	script.run(scope).expect("runs (1)");
+	let code = v8::String::new(scope, &query.query).unwrap();
+	let script = v8::Script::compile(scope, code, None).unwrap();
+	script.run(scope).expect("runs (2)");
+
+	let global = context.global(scope);
+	let scan_key = v8::String::new(scope, SCAN_FN_NAME).unwrap();
+	let scan_fn = global.get(scope, scan_key.into()).unwrap();
+	let scan_fn = v8::Local::<v8::Function>::try_from(scan_fn).map_err(|e| {
+		let msg = format!("{} must be a function: {}", SCAN_FN_NAME, e);
+		Error::new(ErrorKind::Other, msg)
+	})?;
+
+	let getargs_fn = v8::String::new(scope, RUNTIME_FN_NAME).unwrap();
+	let runtime_fn = global.get(scope, getargs_fn.into()).unwrap();
+	let runtime_fn = v8::Local::<v8::Function>::try_from(runtime_fn).map_err(|e| {
+		let msg = format!("{} must be a function: {}", RUNTIME_FN_NAME, e);
+		Error::new(ErrorKind::Other, msg)
+	})?;
+	let args = runtime_fn.call(scope, global.into(), &[scan_fn.into()]).expect("runtime_fn call");
+	let args = v8::Local::<v8::Array>::try_from(args).expect("args");
+	let mut cols = Vec::<String>::with_capacity(args.length() as usize);
+	for i in 0..args.length() {
+		let val = args.get_index(scope, i).unwrap();
+		let val = val.to_string(scope).unwrap();
+		let val = val.to_rust_string_lossy(scope);
+		cols.push(val);
+	}
+	let cols = cols.iter().map(|c| c.as_ref()).collect::<Vec<_>>();
+	println!("cols {:?}", cols);
+
+	let undefined = v8::undefined(scope).into();
+  let partitions = table.partition_iter(query.from, query.to, cols);
+	let mut ans: v8::Local<v8::Value> = undefined;
+  for p in partitions {
+		println!("{:?}", p[0].partition);
+		let args: Vec<v8::Local<v8::Value>> = p.iter().map(|c| {
+			let buffer = unsafe {
+				v8::ArrayBuffer::new_backing_store_from_ptr(
+					c.slice.as_ptr() as *mut c_void,
+					c.slice.len(),
+					backing_store_deleter,
+					std::ptr::null_mut()
+				).make_shared()
+			};
+			let buffer = v8::ArrayBuffer::with_backing_store(scope, &buffer);
+			let buffer_len = c.slice.len();
+			let buffer: v8::Local<v8::ArrayBufferView> = match c.column.r#type {
+				ColumnType::F32 => toArrayBufferView!(scope, buffer, buffer_len, f32, Float32Array),
+				ColumnType::F64 => toArrayBufferView!(scope, buffer, buffer_len, f64, Float64Array),
+				ColumnType::I8  => toArrayBufferView!(scope, buffer, buffer_len,  i8, Int8Array),
+				ColumnType::I16 => toArrayBufferView!(scope, buffer, buffer_len, i16, Int16Array),
+				ColumnType::I32 => toArrayBufferView!(scope, buffer, buffer_len, i32, Int32Array),
+				ColumnType::I64 | ColumnType::Timestamp => toArrayBufferView!(scope, buffer, buffer_len, i64, BigInt64Array),
+				ColumnType::U8  => toArrayBufferView!(scope, buffer, buffer_len, u8, Uint8Array),
+				ColumnType::U16 => toArrayBufferView!(scope, buffer, buffer_len, u16, Uint16Array),
+				ColumnType::U32 => toArrayBufferView!(scope, buffer, buffer_len, u32, Uint32Array),
+				ColumnType::U64 => toArrayBufferView!(scope, buffer, buffer_len, u64, BigUint64Array),
+				ColumnType::Symbol | ColumnType::SymbolPool => todo!("impl")
+			};
+
+			v8::Local::<v8::Value>::try_from(buffer).unwrap()
+		}).collect::<Vec::<_>>();
+
+		ans = scan_fn.call(scope, global.into(), args.as_slice()).unwrap();
+	}
+	let ans = ans.to_string(scope).unwrap();
+	let ans = ans.to_rust_string_lossy(scope);
+	Ok(Vec::from(ans))
 }
 
 pub fn handle_query<'a>(_req: &Request, query: &[u8]) -> Vec<u8> {
 	match serde_json::from_slice::<Query>(query) {
-		Err(err) => Vec::from(format!("error parsing query: {}\n", err.to_string())),
+		Err(err) => {
+			let q = std::str::from_utf8(query).unwrap();
+			eprintln!("{} parsing query {}", err, q);
+			Vec::from(format!("error parsing query {}\n", err))
+		},
 		Ok(mut query) => match run_query(&mut query) {
 			Ok(value) => value,
-			Err(err) => Vec::from(format!("error running query: {}\n", err.to_string())),
+			Err(err) => Vec::from(format!("error running query: {}\n", err)),
 		}
 	}
 }

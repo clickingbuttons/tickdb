@@ -18,6 +18,12 @@ const BUFFER_SIZE: usize = 1 << 16;
 
 extern "C" fn handle_sigint(_: i32) { exit(0); }
 
+fn init_scripting() {
+  let platform = v8::new_default_platform(0, false).make_shared();
+  v8::V8::initialize_platform(platform);
+  v8::V8::initialize();
+}
+
 fn handle_request(req: &Request, body: &[u8]) -> Response<Vec<u8>> {
   let builder = Response::builder();
   match req.method {
@@ -51,8 +57,10 @@ fn write_http_header(stream: &mut TcpStream, response: &Response<Vec<u8>>) {
 fn main() {
   let listener = TcpListener::bind(format!("0.0.0.0:{}", PORT)).unwrap();
 
+	init_scripting();
+
   let num_procs = var("TICKDB_NUM_PROCS")
-    .unwrap_or("2".to_string())
+    .unwrap_or("1".to_string())
     .parse::<i64>()
     .unwrap();
 
@@ -73,6 +81,7 @@ fn main() {
           let mut headers = vec![httparse::EMPTY_HEADER; 20];
           let stream = &mut stream.unwrap();
           let request_size = stream.read(buffer).unwrap();
+					//println!("handle_request {}", std::str::from_utf8(&buffer[..request_size]).unwrap());
 
           let mut request = Request::new(&mut headers[..]);
           let body_offset: usize = request.parse(buffer).unwrap().unwrap();
