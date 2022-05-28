@@ -33,3 +33,5 @@ function tickdb_get_params(func) {
 	 
 	return params;
 }
+
+tickdb_get_params
