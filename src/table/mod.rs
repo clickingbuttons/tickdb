@@ -1,7 +1,7 @@
 mod columns;
 mod meta;
 mod paths;
-mod read;
+pub mod read;
 mod write;
 // "meta" crate is reserved
 // https://internals.rust-lang.org/t/is-the-module-name-meta-forbidden/9587/3

@@ -1,28 +1,26 @@
+mod server;
+
 use http::Response;
 use httparse::Request;
 use nix::{
 	sys::{signal, wait::waitpid},
 	unistd::{fork, ForkResult, Pid}
 };
+use server::{
+	langs::{v8::V8, Lang},
+	query::handle_query
+};
 use std::{
 	env::var,
 	io::{Read, Write},
-	net::{TcpListener, TcpStream},
+	net::TcpListener,
 	process::exit
 };
-mod server;
-use server::query::handle_query;
 
 const PORT: &str = "8080";
 const BUFFER_SIZE: usize = 1 << 16;
 
 extern "C" fn handle_sigint(_: i32) { exit(0); }
-
-fn init_scripting() {
-	let platform = v8::new_default_platform(0, false).make_shared();
-	v8::V8::initialize_platform(platform);
-	v8::V8::initialize();
-}
 
 fn handle_request(req: &Request, body: &[u8]) -> Response<Vec<u8>> {
 	let builder = Response::builder();
@@ -39,7 +37,7 @@ fn handle_request(req: &Request, body: &[u8]) -> Response<Vec<u8>> {
 	}
 }
 
-fn write_http_header(stream: &mut TcpStream, response: &Response<Vec<u8>>) {
+fn get_http_header(response: &Response<Vec<u8>>) -> String {
 	let mut header = format!(
 		"{:?} {} {}\r\nContent-Length: {}\r\n",
 		response.version(),
@@ -51,7 +49,18 @@ fn write_http_header(stream: &mut TcpStream, response: &Response<Vec<u8>>) {
 		header.push_str(&format!("{}: {}\r\n", key, val.to_str().unwrap()));
 	}
 	header.push_str("\r\n");
-	stream.write(header.as_bytes()).unwrap();
+	header
+}
+
+fn register_signal() {
+	let sig_action = signal::SigAction::new(
+		signal::SigHandler::Handler(handle_sigint),
+		signal::SaFlags::SA_NODEFER,
+		signal::SigSet::empty()
+	);
+	unsafe {
+		signal::sigaction(signal::SIGINT, &sig_action).unwrap();
+	}
 }
 
 fn main() {
@@ -62,33 +71,26 @@ fn main() {
 		.parse::<i64>()
 		.unwrap();
 
-	for i in 0..num_procs {
+	for _ in 0..num_procs {
 		match unsafe { fork() } {
 			Ok(ForkResult::Child) => {
-				println!("fork {}", i);
-				init_scripting();
+				register_signal();
 
-				let sig_action = signal::SigAction::new(
-					signal::SigHandler::Handler(handle_sigint),
-					signal::SaFlags::SA_NODEFER,
-					signal::SigSet::empty()
-				);
-				unsafe {
-					signal::sigaction(signal::SIGINT, &sig_action).unwrap();
-				}
-				let buffer = &mut [0; BUFFER_SIZE];
+				V8::init();
+
+				let mut buffer = [0; BUFFER_SIZE];
 				for stream in listener.incoming() {
-					let mut headers = vec![httparse::EMPTY_HEADER; 20];
 					let stream = &mut stream.unwrap();
-					let request_size = stream.read(buffer).unwrap();
-					// println!("handle_request {}", std::str::from_utf8(&buffer[..request_size]).unwrap());
+					let request_size = stream.read(&mut buffer).unwrap();
 
-					let mut request = Request::new(&mut headers[..]);
-					let body_offset: usize = request.parse(buffer).unwrap().unwrap();
+					let mut headers = [httparse::EMPTY_HEADER; 16];
+					let mut request = Request::new(&mut headers);
+					let body_offset: usize = request.parse(&buffer).unwrap().unwrap();
 					let body = &buffer[body_offset..request_size];
 
+					// println!("handle_request {}", std::str::from_utf8(&buffer[..request_size]).unwrap());
 					let response = handle_request(&request, body);
-					write_http_header(stream, &response);
+					stream.write(get_http_header(&response).as_bytes()).unwrap();
 					stream.write(response.body()).unwrap();
 				}
 			}

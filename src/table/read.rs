@@ -5,16 +5,19 @@ use crate::{
 use std::{fmt::Debug, slice::from_raw_parts_mut};
 
 impl Table {
-	fn get_union<'a>(&'a self, columns: Vec<&str>) -> Vec<&'a Column> {
+	fn get_union<'a>(
+		&'a self,
+		columns: impl IntoIterator<Item = impl AsRef<str>>
+	) -> Vec<&'a Column> {
 		columns
-			.iter()
+			.into_iter()
 			.map(|col_name| {
 				let index = self
 					.schema
 					.columns
 					.iter()
-					.position(|col| &col.name == col_name)
-					.unwrap_or_else(|| panic!("Column {} does not exist", col_name));
+					.position(|col| &col.name == col_name.as_ref())
+					.unwrap_or_else(|| panic!("Column {} does not exist", col_name.as_ref()));
 				&self.schema.columns[index]
 			})
 			.collect::<Vec<&'a Column>>()
@@ -25,7 +28,7 @@ impl Table {
 		&'a self,
 		from_ts: i64,
 		to_ts: i64,
-		columns: Vec<&str>
+		columns: impl IntoIterator<Item = impl AsRef<str>>
 	) -> PartitionIterator<'a> {
 		assert!(to_ts >= from_ts);
 		let partitions = self
