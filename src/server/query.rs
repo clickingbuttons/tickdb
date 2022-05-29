@@ -2,23 +2,53 @@ use crate::server::langs::v8::V8;
 use chrono::{DateTime, NaiveDate};
 use httparse::Request;
 use serde::{de, Deserialize};
-use std::io::{Error, ErrorKind};
+use std::{
+	ffi::OsStr,
+	io::{Error, ErrorKind},
+	path::Path
+};
 
-#[derive(Deserialize)]
-enum QueryLang {
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+pub enum QueryLang {
+	Unknown,
 	JavaScript,
 	Julia,
 	Python
 }
 
-#[derive(Deserialize)]
+impl Default for QueryLang {
+	fn default() -> Self { QueryLang::Unknown }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Source {
+	pub text: String,
+	pub path: String
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Query {
-	pub table: String,
+	pub table:  String,
 	#[serde(deserialize_with = "string_to_datetime")]
-	pub from:  i64,
+	pub from:   i64,
 	#[serde(deserialize_with = "string_to_datetime")]
-	pub to:    i64,
-	pub query: String
+	pub to:     i64,
+	#[serde(default)]
+	pub lang:   QueryLang,
+	pub source: Source
+}
+
+pub fn guess_query_lang(path: &str) -> QueryLang {
+	let ext = Path::new(path).extension().and_then(OsStr::to_str);
+	match ext {
+		None => QueryLang::Unknown,
+		Some(l) => match l {
+			"js" => QueryLang::JavaScript,
+			"jl" => QueryLang::Julia,
+			"py" => QueryLang::Python,
+			_ => QueryLang::Unknown
+		}
+	}
 }
 
 pub fn handle_query(_req: &Request, query: &[u8]) -> Vec<u8> {
@@ -28,9 +58,26 @@ pub fn handle_query(_req: &Request, query: &[u8]) -> Vec<u8> {
 			eprintln!("{} parsing query {}", err, q);
 			Vec::from(format!("error parsing query {}\n", err))
 		}
-		Ok(query) => match V8::scan(&query) {
-			Ok(res) => res,
-			Err(err) => Vec::from(err.to_string())
+		Ok(mut query) => {
+			if query.lang == QueryLang::Unknown {
+				query.lang = guess_query_lang(&query.source.path);
+			}
+			let scan = match query.lang {
+				QueryLang::JavaScript => V8::scan(&query),
+				QueryLang::Unknown => {
+					let msg = "must specify query language or have known file extension";
+					Err(Error::new(ErrorKind::Other, msg))
+				}
+				lang => {
+					let msg = format!("unsupported lang {:?}", lang);
+					Err(Error::new(ErrorKind::Other, msg))
+				}
+			};
+
+			match scan {
+				Ok(res) => res,
+				Err(err) => Vec::from(err.to_string())
+			}
 		}
 	}
 }

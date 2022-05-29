@@ -225,7 +225,7 @@ impl V8 {
 		let scope = &mut v8::ContextScope::new(handle_scope, context);
 
 		eval(scope, include_str!("./runtime.js"), "runtime.js")?;
-		eval(scope, &query.query, "query.js")?;
+		eval(scope, &query.source.text, &query.source.path)?;
 
 		let global = context.global(scope);
 		let scan_fn = get_fn(SCAN_FN_NAME, scope, global)?;

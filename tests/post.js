@@ -2,12 +2,16 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const query = fs.readFileSync(path.join(__dirname, "./query.js"), 'utf8');
+const fname = path.join(__dirname, "./query.js");
+const query = fs.readFileSync(fname, 'utf8');
 const post_data = JSON.stringify({
 	table: 'agg1d0',
 	from: '1970-01-01',
 	to:   '1970-01-02',
-	query,
+	source: {
+		text: query,
+		path: "f"
+	}
 });
 const post_options = {
 	host: '127.0.0.1',
