@@ -86,9 +86,10 @@ impl Table {
 		if c.r#type != ColumnType::Symbol {
 			panic!("cannot put_symbol {} on non-symbol column {:?}", val, c);
 		}
-		let symbols = &mut c.symbol_file.as_mut().expect("symbol_file open");
-		symbols.add_sym(val.to_string(), true);
-		self.column_index += 1;
+		let csf = &mut c.symbol_file.as_mut().expect("symbol_file open");
+		let index = csf.add_sym(val.to_string(), true);
+
+		self.put_u64(index);
 	}
 
 	fn put_bytes(&mut self, bytes: &[u8]) {

@@ -28,14 +28,14 @@ pub struct Partition {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Table {
-	pub schema: Schema,
-	pub partitions: Vec<Partition>,
+	pub schema:      Schema,
+	pub partitions:  Vec<Partition>,
 	#[serde(skip)]
-	meta_path: PathBuf,
+	meta_path:       PathBuf,
 	#[serde(skip)]
-	column_index: usize,
+	column_index:    usize,
 	#[serde(skip)]
-	partition_index: usize,
+	partition_index: usize
 }
 
 impl Table {
@@ -53,7 +53,7 @@ impl Table {
 			column_index: 0,
 			partitions: Vec::new(),
 			partition_index: 0,
-			meta_path,
+			meta_path
 		};
 		table.write_meta()?;
 

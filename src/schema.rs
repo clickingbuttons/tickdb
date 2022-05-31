@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{cmp::PartialEq, fmt, fs::File};
-use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::{cmp::PartialEq, collections::HashMap, fmt, fs::File, io::Write};
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 pub enum ColumnType {
@@ -25,48 +23,47 @@ pub struct ColumnFile {
 	pub data: memmap::MmapMut
 }
 
-
 #[derive(Debug)]
 pub struct ColumnSymbolFile {
-	pub file:       File,
+	pub file:       Option<File>,
 	pub symbols:    Vec<String>,
 	pub symbol_map: HashMap<String, u64>
 }
 
 impl ColumnSymbolFile {
-	pub fn add_from_file(&mut self) {
-		let reader = BufReader::new(&mut self.file);
-
-		for line in reader.lines() {
-			let line = line.expect("a line");
-			self.add_sym(line, false);
-		}
-	}
-
-	pub fn add_sym(&mut self, sym: String, write: bool) {
-		if !self.symbol_map.contains_key(&sym) {
-			if write {
-				if self.symbols.len() != 0 {
-					self.file.write_all(b"\n");
+	pub fn add_sym(&mut self, sym: String, write: bool) -> u64 {
+		match self.symbol_map.get(&sym) {
+			Some(i) => *i as u64,
+			None => {
+				if write {
+					match self.file.as_mut() {
+						None => panic!("write called but no open file"),
+						Some(f) => {
+							if self.symbols.len() != 0 {
+								f.write_all(b"\n").expect("write_all (1)");
+							}
+							f.write_all(sym.as_bytes()).expect("write_all (2)");
+						}
+					}
 				}
-				self.file.write_all(sym.as_bytes());
+				self.symbols.push(sym.clone());
+				self.symbol_map.insert(sym, self.symbols.len() as u64);
+				self.symbols.len() as u64
 			}
-			self.symbols.push(sym.clone());
-			self.symbol_map.insert(sym, self.symbols.len() as u64);
 		}
 	}
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Column {
-	pub name:   String,
-	pub r#type: ColumnType,
-	pub stride: usize,
+	pub name:        String,
+	pub r#type:      ColumnType,
+	pub stride:      usize,
 	// Used in Table
 	#[serde(skip)]
-	pub file:   Option<ColumnFile>,
+	pub file:        Option<ColumnFile>,
 	#[serde(skip)]
-	pub symbol_file: Option<ColumnSymbolFile>,
+	pub symbol_file: Option<ColumnSymbolFile>
 }
 
 impl Column {
@@ -86,7 +83,7 @@ impl Column {
 				| ColumnType::F64 => 8
 			},
 			file: None,
-			symbol_file: None,
+			symbol_file: None
 		}
 	}
 }
