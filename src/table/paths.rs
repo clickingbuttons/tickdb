@@ -42,3 +42,10 @@ pub fn get_col_path(p: &Partition, column: &Column) -> PathBuf {
 	path.set_extension(String::from(format!("{:?}", column.r#type).to_lowercase()));
 	path
 }
+
+pub fn get_col_symbols_path(table_name: &str, column: &Column) -> PathBuf {
+	let mut path = get_data_path(table_name);
+	path.push(&column.name);
+	path.set_extension(".syms");
+	path
+}

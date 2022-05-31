@@ -208,7 +208,7 @@ fn get_buffer<'s>(
 		ColumnType::U16 => arr_view!(scope, buffer, buffer_len, u16, Uint16Array),
 		ColumnType::U32 => arr_view!(scope, buffer, buffer_len, u32, Uint32Array),
 		ColumnType::U64 => arr_view!(scope, buffer, buffer_len, u64, BigUint64Array),
-		ColumnType::Symbol | ColumnType::SymbolPool => todo!("impl")
+		ColumnType::Symbol => todo!("impl")
 	};
 
 	v8::Local::<v8::Value>::try_from(buffer).unwrap()

@@ -1,15 +1,39 @@
-use crate::table::Table;
+use crate::table::{Table, ColumnType, ColumnSymbolFile, get_col_symbols_path};
 use std::{
 	fs::{File, OpenOptions},
-	io::{BufReader, Write},
+	io::{BufRead, BufReader, Write},
 	path::PathBuf
 };
+use std::collections::HashMap;
 
 pub fn read_meta(meta_path: &PathBuf) -> std::io::Result<Table> {
 	let f = File::open(meta_path)?;
 	let reader = BufReader::new(f);
 
-	let res = serde_json::from_reader(reader)?;
+	let mut res: Table = serde_json::from_reader(reader)?;
+
+	for c in res.schema.columns.iter_mut() {
+		c.symbol_file = match c.r#type {
+			ColumnType::Symbol => {
+				let path = get_col_symbols_path(&res.schema.name, &c);
+				let file = OpenOptions::new()
+					.read(true)
+					.write(true)
+					.create(true)
+					.open(&path)?;
+
+				let mut csf = ColumnSymbolFile {
+					file,
+					symbols: vec![],
+					symbol_map: HashMap::new()
+				};
+
+				Some(csf)
+			},
+			_ => None
+		};
+	}
+
 	Ok(res)
 }
 

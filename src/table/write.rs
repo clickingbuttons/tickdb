@@ -81,25 +81,13 @@ impl Table {
 		self.put_i64(ts);
 	}
 
-	pub fn put_symbol(&mut self, _val: &str) {
-		// let column_symbols = &mut self.column_symbols[self.column_index];
-		// let symbol_nums = &mut column_symbols.symbol_nums;
-		// let index = match symbol_nums.get(&val) {
-		// Some(i) => *i,
-		// None => {
-		// let symbols = &mut column_symbols.symbols;
-		// symbols.push(val.clone());
-		// symbol_nums.insert(val, symbols.len());
-		// symbols.len()
-		// }
-		// };
-		// let column = &self.columns[self.column_index];
-		// match column.r#type {
-		// ColumnType::Symbol8 => self.put_u8(index as u8),
-		// ColumnType::Symbol16 => self.put_u16(index as u16),
-		// ColumnType::Symbol32 => self.put_u32(index as u32),
-		// bad_type => panic!("Unsupported column type {:?}", bad_type)
-		// }
+	pub fn put_symbol(&mut self, val: &str) {
+		let c = &mut self.schema.columns[self.column_index];
+		if c.r#type != ColumnType::Symbol {
+			panic!("cannot put_symbol {} on non-symbol column {:?}", val, c);
+		}
+		let symbols = &mut c.symbol_file.as_mut().expect("symbol_file open");
+		symbols.add_sym(val.to_string(), true);
 		self.column_index += 1;
 	}
 
