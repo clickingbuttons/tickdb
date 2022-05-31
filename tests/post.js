@@ -10,7 +10,7 @@ const post_data = JSON.stringify({
 	to:   '1970-01-02',
 	source: {
 		text: query,
-		path: "f"
+		path: fname
 	}
 });
 const post_options = {

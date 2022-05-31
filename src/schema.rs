@@ -27,13 +27,13 @@ pub struct ColumnFile {
 pub struct ColumnSymbolFile {
 	pub file:       Option<File>,
 	pub symbols:    Vec<String>,
-	pub symbol_map: HashMap<String, u64>
+	pub symbol_map: HashMap<String, usize>
 }
 
 impl ColumnSymbolFile {
-	pub fn add_sym(&mut self, sym: String, write: bool) -> u64 {
+	pub fn add_sym(&mut self, sym: String, write: bool) -> usize {
 		match self.symbol_map.get(&sym) {
-			Some(i) => *i as u64,
+			Some(i) => *i,
 			None => {
 				if write {
 					match self.file.as_mut() {
@@ -47,8 +47,8 @@ impl ColumnSymbolFile {
 					}
 				}
 				self.symbols.push(sym.clone());
-				self.symbol_map.insert(sym, self.symbols.len() as u64);
-				self.symbols.len() as u64
+				self.symbol_map.insert(sym, self.symbols.len());
+				self.symbols.len()
 			}
 		}
 	}

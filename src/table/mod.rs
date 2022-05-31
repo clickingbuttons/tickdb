@@ -62,12 +62,11 @@ impl Table {
 
 	pub fn open<'b>(name: &'b str) -> Result<Table> {
 		let meta_path = get_meta_path(&name);
-		let mut res = read_meta(&meta_path).map_err(|e| {
+		let mut res = read_meta(&name, &meta_path).map_err(|e| {
 			let msg = format!("could not open table {}: {}", name, e);
 			Error::new(ErrorKind::NotFound, msg)
 		})?;
 		res.meta_path = meta_path;
-		res.schema.name = String::from(name);
 
 		Ok(res)
 	}

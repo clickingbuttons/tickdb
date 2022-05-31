@@ -17,7 +17,7 @@ impl Table {
 					.columns
 					.iter()
 					.position(|col| &col.name == col_name.as_ref())
-					.unwrap_or_else(|| panic!("Column {} does not exist", col_name.as_ref()));
+					.unwrap_or_else(|| panic!("column {} does not exist on table {}", col_name.as_ref(), self.schema.name));
 				&self.schema.columns[index]
 			})
 			.collect::<Vec<&'a Column>>()

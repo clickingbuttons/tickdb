@@ -89,7 +89,7 @@ impl Table {
 		let csf = &mut c.symbol_file.as_mut().expect("symbol_file open");
 		let index = csf.add_sym(val.to_string(), true);
 
-		self.put_u64(index);
+		self.put_u64(index as u64);
 	}
 
 	fn put_bytes(&mut self, bytes: &[u8]) {

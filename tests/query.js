@@ -3,7 +3,8 @@ function sumArr(arr) {
 }
 
 var sum = 0
-function scan(open, high, low, close, volume) {
+function scan(sym, open, high, low, close, volume) {
+	sum += sym.length;
 	sum += sumArr(open);
 	sum += sumArr(high);
 	sum += sumArr(low);

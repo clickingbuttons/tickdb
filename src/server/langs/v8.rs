@@ -6,7 +6,7 @@ use std::{
 	io::{Error, ErrorKind}
 };
 use tickdb::{
-	schema::{ColumnType, Schema},
+	schema::ColumnType,
 	table::{read::PartitionColumn, Table}
 };
 
@@ -156,7 +156,6 @@ fn get_fn<'s>(
 
 fn get_cols<'s>(
 	scan_fn: v8::Local<'s, v8::Function>,
-	schema: &Schema,
 	scope: &mut v8::HandleScope<'s>,
 	global: v8::Local<'s, v8::Object>
 ) -> std::io::Result<Vec<String>> {
@@ -171,10 +170,6 @@ fn get_cols<'s>(
 		let val = args.get_index(scope, i).unwrap();
 		let val = val.to_string(scope).unwrap();
 		let val = val.to_rust_string_lossy(scope);
-		if !schema.columns.iter().any(|c| c.name == val) {
-			let msg = format!("column {} doesn't exist on table {}", val, schema.name);
-			return Err(Error::new(ErrorKind::Other, msg));
-		}
 		cols.push(val);
 	}
 	Ok(cols)
@@ -184,6 +179,17 @@ fn get_buffer<'s>(
 	c: &PartitionColumn,
 	scope: &mut v8::HandleScope<'s>
 ) -> v8::Local<'s, v8::Value> {
+	if c.column.r#type == ColumnType::Symbol {
+		let buffer = v8::Array::new(scope, c.row_count as i32);
+		let csf = c.column.symbol_file.as_ref().expect("symbol_file open");
+		for (i, sym_index) in c.get_u64().iter().enumerate() {
+			let sym = &csf.symbols[*sym_index as usize - 1];
+			let sym = v8::String::new_from_one_byte(scope, sym.as_bytes(), v8::NewStringType::Normal).unwrap();
+			buffer.set_index(scope, i as u32, sym.into());
+		}
+
+		return v8::Local::<v8::Value>::try_from(buffer).unwrap();
+	}
 	let buffer = unsafe {
 		v8::ArrayBuffer::new_backing_store_from_ptr(
 			c.slice.as_ptr() as *mut c_void,
@@ -208,7 +214,7 @@ fn get_buffer<'s>(
 		ColumnType::U16 => arr_view!(scope, buffer, buffer_len, u16, Uint16Array),
 		ColumnType::U32 => arr_view!(scope, buffer, buffer_len, u32, Uint32Array),
 		ColumnType::U64 => arr_view!(scope, buffer, buffer_len, u64, BigUint64Array),
-		ColumnType::Symbol => todo!("impl")
+		ColumnType::Symbol => panic!("symbols have no array view")
 	};
 
 	v8::Local::<v8::Value>::try_from(buffer).unwrap()
@@ -229,7 +235,7 @@ impl V8 {
 
 		let global = context.global(scope);
 		let scan_fn = get_fn(SCAN_FN_NAME, scope, global)?;
-		let cols = get_cols(scan_fn, &table.schema, scope, global)?;
+		let cols = get_cols(scan_fn, scope, global)?;
 		let partitions = table.partition_iter(query.from, query.to, cols);
 
 		let mut ans: v8::Local<v8::Value> = v8::undefined(scope).into();

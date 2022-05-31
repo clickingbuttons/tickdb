@@ -6,18 +6,19 @@ use std::{
 	path::PathBuf
 };
 
-pub fn read_meta(meta_path: &PathBuf) -> std::io::Result<Table> {
+pub fn read_meta(name: &str, meta_path: &PathBuf) -> std::io::Result<Table> {
 	let f = File::open(meta_path)?;
 	let reader = BufReader::new(f);
 
 	let mut res: Table = serde_json::from_reader(reader)?;
+	res.schema.name = String::from(name);
 
 	for c in res.schema.columns.iter_mut() {
 		if c.r#type != ColumnType::Symbol {
 			continue;
 		}
-		let path = get_col_symbols_path(&res.schema.name, &c);
-		let file = OpenOptions::new().write(true).create(true).open(&path)?;
+		let path = get_col_symbols_path(name, &c);
+		let file = OpenOptions::new().read(true).write(true).create(true).open(&path)?;
 
 		let mut csf = ColumnSymbolFile {
 			file:       None,
