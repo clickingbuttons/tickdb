@@ -94,35 +94,35 @@ fn write() { initialize_agg1d(0); }
 fn sum_ohlcv_rust() {
 	let table = initialize_agg1d(1);
 
-	let mut sums = (0 as u64, 0.0, 0.0, 0.0, 0.0, 0 as u64);
+	let mut sums = (0 as u64, 0 as u64, 0.0, 0.0, 0.0, 0.0, 0 as u64);
 	let mut total = 0;
 	let partitions = table.partition_iter(FROM_TS, TO_TS, vec![
-		"ts", "open", "high", "low", "close", "volume",
+		"ts", "sym", "open", "high", "low", "close", "volume",
 	]);
 	for partition in partitions {
 		sums.0 += partition[0].get_u64().iter().sum::<u64>();
-		// println!("0");
-		sums.1 += get_f64_sum(partition[1].get_f32());
-		// println!("1");
+		sums.1 += partition[1]
+			.get_sym()
+			.iter()
+			.map(|s| s.len() as u64)
+			.sum::<u64>();
 		sums.2 += get_f64_sum(partition[2].get_f32());
-		// println!("2");
 		sums.3 += get_f64_sum(partition[3].get_f32());
-		// println!("3");
 		sums.4 += get_f64_sum(partition[4].get_f32());
-		// println!("4");
-		sums.5 += partition[5]
+		sums.5 += get_f64_sum(partition[5].get_f32());
+		sums.6 += partition[6]
 			.get_u32()
 			.iter()
 			.map(|v| *v as u64)
 			.sum::<u64>();
-		// println!("5");
-		total += partition[5].get_u64().iter().len();
+		total += partition[6].get_u64().iter().len();
 	}
 	assert_eq!(sums.0, 107869104152250);
-	assert_eq!(sums.1, 43115.030963897705);
-	assert_eq!(sums.2, 43129.45606648922);
-	assert_eq!(sums.3, 43379.27025318146);
-	assert_eq!(sums.4, 43205.89879381657);
-	assert_eq!(sums.5, 185685916282112);
+	assert_eq!(sums.1, 216182);
+	assert_eq!(sums.2, 43115.030963897705);
+	assert_eq!(sums.3, 43129.45606648922);
+	assert_eq!(sums.4, 43379.27025318146);
+	assert_eq!(sums.5, 43205.89879381657);
+	assert_eq!(sums.6, 185685916282112);
 	assert_eq!(total, ROW_COUNT);
 }

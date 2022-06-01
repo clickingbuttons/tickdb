@@ -184,7 +184,8 @@ fn get_buffer<'s>(
 		let csf = c.column.symbol_file.as_ref().expect("symbol_file open");
 		for (i, sym_index) in c.get_u64().iter().enumerate() {
 			let sym = &csf.symbols[*sym_index as usize - 1];
-			let sym = v8::String::new_from_one_byte(scope, sym.as_bytes(), v8::NewStringType::Normal).unwrap();
+			let sym =
+				v8::String::new_from_one_byte(scope, sym.as_bytes(), v8::NewStringType::Normal).unwrap();
 			buffer.set_index(scope, i as u32, sym.into());
 		}
 

@@ -1,8 +1,8 @@
 use crate::{
 	schema::Column,
-	table::{ColumnFile, Partition, Table}
+	table::{ColumnFile, ColumnType, Partition, Table}
 };
-use std::{fmt::Debug, slice::from_raw_parts_mut};
+use std::{fmt::Debug, slice::from_raw_parts};
 
 impl Table {
 	fn get_union<'a>(
@@ -17,7 +17,13 @@ impl Table {
 					.columns
 					.iter()
 					.position(|col| &col.name == col_name.as_ref())
-					.unwrap_or_else(|| panic!("column {} does not exist on table {}", col_name.as_ref(), self.schema.name));
+					.unwrap_or_else(|| {
+						panic!(
+							"column {} does not exist on table {}",
+							col_name.as_ref(),
+							self.schema.name
+						)
+					});
 				&self.schema.columns[index]
 			})
 			.collect::<Vec<&'a Column>>()
@@ -67,8 +73,8 @@ pub struct PartitionColumn<'a> {
 macro_rules! get_partition_slice {
 	($slice: expr, $_type: ty) => {
 		unsafe {
-			from_raw_parts_mut(
-				$slice.as_ptr() as *mut $_type,
+			from_raw_parts(
+				$slice.as_ptr() as *const $_type,
 				$slice.len() / std::mem::size_of::<$_type>()
 			)
 		}
@@ -76,25 +82,36 @@ macro_rules! get_partition_slice {
 }
 
 impl<'a> PartitionColumn<'a> {
-	pub fn get_i8(&self) -> &mut [i8] { get_partition_slice!(self.slice, i8) }
+	pub fn get_i8(&self) -> &[i8] { get_partition_slice!(self.slice, i8) }
 
-	pub fn get_u8(&self) -> &mut [u8] { get_partition_slice!(self.slice, u8) }
+	pub fn get_u8(&self) -> &[u8] { get_partition_slice!(self.slice, u8) }
 
-	pub fn get_i16(&self) -> &mut [i16] { get_partition_slice!(self.slice, i16) }
+	pub fn get_i16(&self) -> &[i16] { get_partition_slice!(self.slice, i16) }
 
-	pub fn get_u16(&self) -> &mut [u16] { get_partition_slice!(self.slice, u16) }
+	pub fn get_u16(&self) -> &[u16] { get_partition_slice!(self.slice, u16) }
 
-	pub fn get_i32(&self) -> &mut [i32] { get_partition_slice!(self.slice, i32) }
+	pub fn get_i32(&self) -> &[i32] { get_partition_slice!(self.slice, i32) }
 
-	pub fn get_u32(&self) -> &mut [u32] { get_partition_slice!(self.slice, u32) }
+	pub fn get_u32(&self) -> &[u32] { get_partition_slice!(self.slice, u32) }
 
-	pub fn get_i64(&self) -> &mut [i64] { get_partition_slice!(self.slice, i64) }
+	pub fn get_i64(&self) -> &[i64] { get_partition_slice!(self.slice, i64) }
 
-	pub fn get_u64(&self) -> &mut [u64] { get_partition_slice!(self.slice, u64) }
+	pub fn get_u64(&self) -> &[u64] { get_partition_slice!(self.slice, u64) }
 
-	pub fn get_f32(&self) -> &mut [f32] { get_partition_slice!(self.slice, f32) }
+	pub fn get_f32(&self) -> &[f32] { get_partition_slice!(self.slice, f32) }
 
-	pub fn get_f64(&self) -> &mut [f64] { get_partition_slice!(self.slice, f64) }
+	pub fn get_f64(&self) -> &[f64] { get_partition_slice!(self.slice, f64) }
+
+	pub fn get_sym(&self) -> Vec<&str> {
+		if self.column.r#type != ColumnType::Symbol {
+			panic!("cannot get_sym on column type {:?}", self.column.r#type);
+		}
+		let symbol_file = self.column.symbol_file.as_ref().unwrap();
+		get_partition_slice!(self.slice, usize)
+			.iter()
+			.map(|i| &*symbol_file.symbols[*i - 1])
+			.collect::<Vec<&str>>()
+	}
 }
 
 #[derive(Debug)]
@@ -128,7 +145,7 @@ fn binary_search_seek(haystack: &[i64], needle: i64, seek_start: bool) -> Result
 }
 
 fn find_ts(ts_column: &ColumnFile, row_count: usize, needle: i64, seek_start: bool) -> usize {
-	let data = unsafe { from_raw_parts_mut(ts_column.data.as_ptr() as *mut i64, row_count) };
+	let data = unsafe { from_raw_parts(ts_column.data.as_ptr() as *const i64, row_count) };
 	let search_results = binary_search_seek(data, needle, seek_start);
 	match search_results {
 		Ok(n) => n,
@@ -174,8 +191,8 @@ impl<'a> Iterator for PartitionIterator<'a> {
 				let col_file = self.table.open_column(table_column_index);
 				// println!("col_file {} {:?}", table_column_index, col_file);
 				let slice = unsafe {
-					from_raw_parts_mut(
-						col_file.data.as_ptr().add(start_row * table_column.stride) as *mut u8,
+					from_raw_parts(
+						col_file.data.as_ptr().add(start_row * table_column.stride) as *const u8,
 						row_count * table_column.stride
 					)
 				};
