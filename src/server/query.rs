@@ -1,12 +1,15 @@
 use crate::server::langs::v8::V8;
 use chrono::{DateTime, NaiveDate};
 use httparse::Request;
+use log::info;
 use serde::{de, Deserialize};
 use std::{
+	collections::HashMap,
 	ffi::OsStr,
 	io::{Error, ErrorKind},
 	path::Path
 };
+use tickdb::table::Table;
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub enum QueryLang {
@@ -51,7 +54,7 @@ pub fn guess_query_lang(path: &str) -> QueryLang {
 	}
 }
 
-pub fn handle_query(_req: &Request, query: &[u8]) -> Vec<u8> {
+pub fn handle_query(_req: &Request, query: &[u8], tables: &HashMap<String, Table>) -> Vec<u8> {
 	match serde_json::from_slice::<Query>(query) {
 		Err(err) => {
 			let q = std::str::from_utf8(query).unwrap();
@@ -63,7 +66,7 @@ pub fn handle_query(_req: &Request, query: &[u8]) -> Vec<u8> {
 				query.lang = guess_query_lang(&query.source.path);
 			}
 			let scan = match query.lang {
-				QueryLang::JavaScript => V8::scan(&query),
+				QueryLang::JavaScript => V8::scan(&query, tables),
 				QueryLang::Unknown => {
 					let msg = "must specify query language or have known file extension";
 					Err(Error::new(ErrorKind::Other, msg))
@@ -75,7 +78,16 @@ pub fn handle_query(_req: &Request, query: &[u8]) -> Vec<u8> {
 			};
 
 			match scan {
-				Ok(res) => res,
+				Ok(res) => {
+					info!("scan finish {}", serde_json::to_string(&res).unwrap());
+					let elapsed_loop = res.elapsed_loop.as_secs_f64();
+					info!(
+						"loop {} GBps {} Mrps",
+						res.bytes_read as f64 / elapsed_loop / 1e9,
+						res.row_count as f64 / elapsed_loop / 1e9
+					);
+					res.bytes
+				}
 				Err(err) => Vec::from(err.to_string())
 			}
 		}

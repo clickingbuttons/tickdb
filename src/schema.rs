@@ -32,25 +32,21 @@ pub struct ColumnSymbolFile {
 
 impl ColumnSymbolFile {
 	pub fn add_sym(&mut self, sym: String, write: bool) -> usize {
-		match self.symbol_map.get(&sym) {
-			Some(i) => *i,
-			None => {
-				if write {
-					match self.file.as_mut() {
-						None => panic!("write called but no open file"),
-						Some(f) => {
-							if self.symbols.len() != 0 {
-								f.write_all(b"\n").expect("write_all (1)");
-							}
-							f.write_all(sym.as_bytes()).expect("write_all (2)");
+		*self.symbol_map.entry(sym.clone()).or_insert_with(|| {
+			if write {
+				match self.file.as_mut() {
+					None => panic!("write called but no open file"),
+					Some(f) => {
+						if self.symbols.len() != 0 {
+							f.write_all(b"\n").expect("write_all (1)");
 						}
+						f.write_all(sym.as_bytes()).expect("write_all (2)");
 					}
 				}
-				self.symbols.push(sym.clone());
-				self.symbol_map.insert(sym, self.symbols.len());
-				self.symbols.len()
 			}
-		}
+			self.symbols.push(sym);
+			self.symbols.len()
+		})
 	}
 }
 

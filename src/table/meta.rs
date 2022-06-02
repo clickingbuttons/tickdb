@@ -26,7 +26,7 @@ pub fn read_meta(name: &str, meta_path: &PathBuf) -> std::io::Result<Table> {
 
 		let mut csf = ColumnSymbolFile {
 			file:       None,
-			symbols:    vec![],
+			symbols:    Vec::new(),
 			symbol_map: HashMap::new()
 		};
 

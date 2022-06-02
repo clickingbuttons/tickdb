@@ -1,9 +1,12 @@
 // https://v8.dev/docs/embed
-use super::{Lang, SCAN_FN_NAME};
+use super::{Lang, LangScanRes, SCAN_FN_NAME};
 use crate::server::query::Query;
+use log::debug;
 use std::{
+	collections::HashMap,
 	ffi::c_void,
-	io::{Error, ErrorKind}
+	io::{Error, ErrorKind},
+	time::Instant
 };
 use tickdb::{
 	schema::ColumnType,
@@ -222,8 +225,15 @@ fn get_buffer<'s>(
 }
 
 impl V8 {
-	pub fn scan(query: &Query) -> std::io::Result<Vec<u8>> {
-		let table = Table::open(&query.table)?;
+	pub fn scan(query: &Query, tables: &HashMap<String, Table>) -> std::io::Result<LangScanRes> {
+		debug!("scan start");
+		let table = tables.get(&query.table);
+		if table.is_none() {
+			let msg = format!("table {} is not loaded", query.table);
+			return Err(Error::new(ErrorKind::Other, msg));
+		}
+		let table = table.unwrap();
+		let start = Instant::now();
 		let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
 		isolate.set_capture_stack_trace_for_uncaught_exceptions(true, 32);
 
@@ -237,12 +247,24 @@ impl V8 {
 		let global = context.global(scope);
 		let scan_fn = get_fn(SCAN_FN_NAME, scope, global)?;
 		let cols = get_cols(scan_fn, scope, global)?;
+		if cols.len() == 0 {
+			let msg = format!("function {} must have arguments", SCAN_FN_NAME);
+			return Err(Error::new(ErrorKind::Other, msg));
+		}
 		let partitions = table.partition_iter(query.from, query.to, cols);
 
 		let mut ans: v8::Local<v8::Value> = v8::undefined(scope).into();
 		let scope = &mut v8::TryCatch::new(scope);
+		let start_loop = Instant::now();
+		let mut row_count: u64 = 0;
+		let mut bytes_read: u64 = 0;
+		debug!("scan loop start");
 		for p in partitions {
 			let args = p.iter().map(|c| get_buffer(c, scope)).collect::<Vec<_>>();
+			row_count += p[0].row_count as u64;
+			for c in p {
+				bytes_read += c.slice.len() as u64;
+			}
 
 			let res = scan_fn.call(scope, global.into(), args.as_slice());
 			if res.is_none() {
@@ -252,8 +274,16 @@ impl V8 {
 			}
 			ans = res.unwrap();
 		}
+		debug!("scan loop end");
 		let ans = ans.to_string(scope).unwrap().to_rust_string_lossy(scope);
-		Ok(Vec::from(ans))
+		Ok(LangScanRes {
+			elapsed: start.elapsed(),
+			elapsed_loop: start_loop.elapsed(),
+			row_count,
+			bytes_read,
+			bytes_out: ans.len() as u64,
+			bytes: Vec::from(ans)
+		})
 	}
 }
 

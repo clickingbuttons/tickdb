@@ -1,6 +1,6 @@
 mod columns;
 mod meta;
-mod paths;
+pub mod paths;
 pub mod read;
 mod write;
 use crate::{schema::*, table::meta::read_meta};

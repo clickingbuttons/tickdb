@@ -1,10 +1,14 @@
 function sumArr(arr) {
-	return arr.reduce((acc, cur) => acc + Number(cur), 0);
+	var res = 0
+	for (var i = 0; i < arr.length; i++) {
+		res += arr[i]
+	}
+
+	return res
 }
 
 var sum = 0
-function scan(sym, open, high, low, close, volume) {
-	sum += sym.length;
+function scan(open, high, low, close, volume) {
 	sum += sumArr(open);
 	sum += sumArr(high);
 	sum += sumArr(low);

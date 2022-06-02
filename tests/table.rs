@@ -1,6 +1,6 @@
 use tickdb::{schema::*, table::*};
 
-static ROW_COUNT: usize = 24 * 60 * 60 + 100;
+static ROW_COUNT: usize = 10_000_000;
 static FROM_TS: i64 = 0;
 static TO_TS: i64 = 365 * 24 * 60 * 60 * 1_000_000_000;
 
@@ -37,7 +37,7 @@ fn generate_row(ts: i64, rng: &fastrand::Rng) -> OHLCV {
 		low: rng.f32(),
 		close: rng.f32(),
 		close_un: rng.f32(),
-		volume: rng.u32(..)
+		volume: rng.u32(0..1000)
 	}
 }
 
@@ -88,11 +88,8 @@ fn initialize_agg1d(index: i64) -> Table {
 fn get_f64_sum(slice: &[f32]) -> f64 { slice.iter().map(|v| *v as f64).sum::<f64>() }
 
 #[test]
-fn write() { initialize_agg1d(0); }
-
-#[test]
 fn sum_ohlcv_rust() {
-	let table = initialize_agg1d(1);
+	let table = initialize_agg1d(0);
 
 	let mut sums = (0 as u64, 0 as u64, 0.0, 0.0, 0.0, 0.0, 0 as u64);
 	let mut total = 0;
@@ -100,7 +97,7 @@ fn sum_ohlcv_rust() {
 		"ts", "sym", "open", "high", "low", "close", "volume",
 	]);
 	for partition in partitions {
-		sums.0 += partition[0].get_u64().iter().sum::<u64>();
+		sums.0 += partition[0].get_u64().iter().fold(0, |acc, ts| acc ^ ts);
 		sums.1 += partition[1]
 			.get_sym()
 			.iter()
@@ -117,12 +114,12 @@ fn sum_ohlcv_rust() {
 			.sum::<u64>();
 		total += partition[6].get_u64().iter().len();
 	}
-	assert_eq!(sums.0, 107869104152250);
-	assert_eq!(sums.1, 216182);
-	assert_eq!(sums.2, 43115.030963897705);
-	assert_eq!(sums.3, 43129.45606648922);
-	assert_eq!(sums.4, 43379.27025318146);
-	assert_eq!(sums.5, 43205.89879381657);
-	assert_eq!(sums.6, 185685916282112);
+	assert_eq!(sums.0, 9182783923072);
+	assert_eq!(sums.1, 24995152);
+	assert_eq!(sums.2, 5000173.621421814);
+	assert_eq!(sums.3, 5001427.372336388);
+	assert_eq!(sums.4, 4999160.529966474);
+	assert_eq!(sums.5, 4999284.882663012);
+	assert_eq!(sums.6, 4994871927);
 	assert_eq!(total, ROW_COUNT);
 }
