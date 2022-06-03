@@ -1,13 +1,14 @@
 use crate::server::langs::v8::V8;
 use chrono::{DateTime, NaiveDate};
 use httparse::Request;
-use log::info;
+use log::{debug, info};
 use serde::{de, Deserialize};
 use std::{
 	collections::HashMap,
 	ffi::OsStr,
 	io::{Error, ErrorKind},
-	path::Path
+	path::Path,
+	time::Instant
 };
 use tickdb::table::Table;
 
@@ -65,6 +66,7 @@ pub fn handle_query(_req: &Request, query: &[u8], tables: &HashMap<String, Table
 			if query.lang == QueryLang::Unknown {
 				query.lang = guess_query_lang(&query.source.path);
 			}
+			let start_time = Instant::now();
 			let scan = match query.lang {
 				QueryLang::JavaScript => V8::scan(&query, tables),
 				QueryLang::Unknown => {
@@ -76,15 +78,16 @@ pub fn handle_query(_req: &Request, query: &[u8], tables: &HashMap<String, Table
 					Err(Error::new(ErrorKind::Other, msg))
 				}
 			};
+			println!("scan finished in {:?}", start_time.elapsed());
 
 			match scan {
 				Ok(res) => {
-					info!("scan finish {}", serde_json::to_string(&res).unwrap());
+					info!("success {}", serde_json::to_string(&res).unwrap());
 					let elapsed_loop = res.elapsed_loop.as_secs_f64();
 					info!(
 						"loop {} GBps {} Mrps",
 						res.bytes_read as f64 / elapsed_loop / 1e9,
-						res.row_count as f64 / elapsed_loop / 1e9
+						res.row_count as f64 / elapsed_loop / 1e6
 					);
 					res.bytes
 				}

@@ -19,8 +19,6 @@ where
 #[derive(Serialize)]
 pub struct LangScanRes {
 	#[serde(serialize_with = "pretty_duration")]
-	pub elapsed:      Duration,
-	#[serde(serialize_with = "pretty_duration")]
 	pub elapsed_loop: Duration,
 	pub row_count:    u64,
 	pub bytes_read:   u64,

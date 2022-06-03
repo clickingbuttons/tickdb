@@ -108,6 +108,7 @@ fn main() {
 	for _ in 0..num_procs {
 		match unsafe { fork() } {
 			Ok(ForkResult::Child) => {
+				println!("fork {}", std::process::id());
 				register_signal();
 
 				V8::init();

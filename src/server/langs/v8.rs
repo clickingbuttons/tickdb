@@ -233,7 +233,6 @@ impl V8 {
 			return Err(Error::new(ErrorKind::Other, msg));
 		}
 		let table = table.unwrap();
-		let start = Instant::now();
 		let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
 		isolate.set_capture_stack_trace_for_uncaught_exceptions(true, 32);
 
@@ -277,7 +276,6 @@ impl V8 {
 		debug!("scan loop end");
 		let ans = ans.to_string(scope).unwrap().to_rust_string_lossy(scope);
 		Ok(LangScanRes {
-			elapsed: start.elapsed(),
 			elapsed_loop: start_loop.elapsed(),
 			row_count,
 			bytes_read,
