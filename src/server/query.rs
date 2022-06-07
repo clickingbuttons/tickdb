@@ -1,14 +1,13 @@
 use crate::server::langs::v8::V8;
 use chrono::{DateTime, NaiveDate};
 use httparse::Request;
-use log::{debug, info};
+use log::info;
 use serde::{de, Deserialize};
 use std::{
 	collections::HashMap,
 	ffi::OsStr,
 	io::{Error, ErrorKind},
-	path::Path,
-	time::Instant
+	path::Path
 };
 use tickdb::table::Table;
 
@@ -66,7 +65,6 @@ pub fn handle_query(_req: &Request, query: &[u8], tables: &HashMap<String, Table
 			if query.lang == QueryLang::Unknown {
 				query.lang = guess_query_lang(&query.source.path);
 			}
-			let start_time = Instant::now();
 			let scan = match query.lang {
 				QueryLang::JavaScript => V8::scan(&query, tables),
 				QueryLang::Unknown => {
@@ -78,7 +76,6 @@ pub fn handle_query(_req: &Request, query: &[u8], tables: &HashMap<String, Table
 					Err(Error::new(ErrorKind::Other, msg))
 				}
 			};
-			println!("scan finished in {:?}", start_time.elapsed());
 
 			match scan {
 				Ok(res) => {
