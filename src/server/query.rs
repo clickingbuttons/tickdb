@@ -12,6 +12,7 @@ use std::{
 	time::Instant
 };
 use tickdb::table::Table;
+use crate::server::langs::Lang;
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Copy, Clone)]
 pub enum QueryLang {
@@ -75,13 +76,19 @@ impl Default for ScanStats {
 	}
 }
 
+macro_rules! error_code {
+    ( $code:expr, $msg:expr ) => {
+			return Err(($code, $msg.to_string()))
+    }
+}
+
 fn handle_scan(
-	query: &mut Query,
+	query: &Query,
 	tables: &HashMap<String, Table>
 ) -> Result<Vec<u8>, (u16, String)> {
-	if query.lang == QueryLang::Unknown {
-		query.lang = guess_query_lang(&query.source.path);
-	}
+	// V8 requires isolate and isolate_scope be on the stack for the duration of
+	// a scan. If you can find a way to get them out of here and into "struct V8"
+	// please do so.
 	let mut isolate = match query.lang {
 		QueryLang::JavaScript => Some(v8::Isolate::new(v8::CreateParams::default())),
 		_ => None
@@ -92,35 +99,25 @@ fn handle_scan(
 	};
 
 	let mut lang = match query.lang {
-		QueryLang::JavaScript => V8::new(&query, isolate_scope.as_mut().unwrap()).unwrap(),
-		QueryLang::Unknown => {
-			let msg = "must specify query language or have known file extension";
-			return Err((422, msg.to_string()));
-		}
-		lang => {
-			let msg = format!("unsupported lang {:?}", lang);
-			return Err((422, msg.to_string()));
-		}
+		QueryLang::JavaScript => V8::new(&query, isolate_scope.as_mut().unwrap()).expect("V8::new"),
+		QueryLang::Unknown => error_code!(
+			422,
+			"must specify query language or have known file extension"
+		),
+		lang => error_code!(422, format!("unsupported lang {:?}", lang))
 	};
 
 	let table = match tables.get(&query.table) {
-		None => {
-			return Err((404, format!("table {} not loaded", query.table)));
-		}
+		None => error_code!(404, format!("table {} not loaded", query.table)),
 		Some(t) => t
 	};
 
 	let cols = match lang.get_cols() {
-		Err(e) => {
-			return Err((500, e.to_string()));
-		}
+		Err(e) => error_code!(500, e),
 		Ok(c) => c
 	};
 	if cols.len() == 0 {
-		return Err((
-			422,
-			format!("function {} must have arguments", SCAN_FN_NAME)
-		));
+		error_code!(422, format!("function {} must have arguments", SCAN_FN_NAME))
 	}
 
 	let mut stats = ScanStats::default();
@@ -132,16 +129,14 @@ fn handle_scan(
 			stats.byte_count += c.slice.len() as u64;
 		}
 		if let Err(e) = lang.scan_partition(p) {
-			return Err((422, format!("runtime error in {}: {}", SCAN_FN_NAME, e)));
+			error_code!(422, format!("runtime error in {}: {}", SCAN_FN_NAME, e))
 		}
 	}
 
 	stats.loop_secs = stats.loop_start.elapsed().as_secs_f64();
 
 	match lang.serialize() {
-		Err(e) => {
-			return Err((500, format!("error serializing scan_ans: {}", e)));
-		}
+		Err(e) => error_code!(500, format!("error serializing scan_ans: {}", e)),
 		Ok(bytes) => {
 			info!(
 				"loop {} GBps {} Mrps",
@@ -165,9 +160,14 @@ pub fn handle_query(
 			let msg = format!("error parsing query {}. query: {}\n", err, q);
 			resp.status(400).body(Vec::from(msg)).unwrap()
 		}
-		Ok(mut query) => match handle_scan(&mut query, tables) {
-			Err((code, msg)) => resp.status(code).body(Vec::from(msg)).unwrap(),
-			Ok(bytes) => resp.body(bytes).unwrap()
+		Ok(mut query) => {
+			if query.lang == QueryLang::Unknown {
+				query.lang = guess_query_lang(&query.source.path);
+			}
+			match handle_scan(&query, tables) {
+				Err((code, msg)) => resp.status(code).body(Vec::from(msg)).unwrap(),
+				Ok(bytes) => resp.body(bytes).unwrap()
+			}
 		}
 	}
 }

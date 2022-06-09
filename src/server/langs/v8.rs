@@ -225,8 +225,23 @@ impl<'s, 'i> V8<'s, 'i> {
 			scan_ans
 		})
 	}
+}
 
-	pub fn get_cols(&mut self) -> std::io::Result<Vec<String>> {
+impl<'s, 'i> Lang for V8<'s, 'i> {
+	fn init() {
+		let platform = v8::new_default_platform(0, false).make_shared();
+		v8::V8::initialize_platform(platform);
+		v8::V8::initialize();
+	}
+
+	fn deinit() {
+		unsafe {
+			v8::V8::dispose();
+			v8::V8::dispose_platform();
+		}
+	}
+
+	fn get_cols(&mut self) -> std::io::Result<Vec<String>> {
 		let runtime_fn = get_fn(RUNTIME_FN_NAME, &mut self.scope, self.global)?;
 
 		let args = runtime_fn
@@ -243,7 +258,7 @@ impl<'s, 'i> V8<'s, 'i> {
 		Ok(cols)
 	}
 
-	pub fn scan_partition(&mut self, p: Vec<PartitionColumn>) -> std::io::Result<()> {
+	fn scan_partition(&mut self, p: Vec<PartitionColumn>) -> std::io::Result<()> {
 		let scope = &mut v8::TryCatch::new(&mut self.scope);
 		let args = p.iter().map(|c| get_buffer(c, scope)).collect::<Vec<_>>();
 
@@ -260,7 +275,7 @@ impl<'s, 'i> V8<'s, 'i> {
 		Ok(())
 	}
 
-	pub fn serialize(&mut self) -> std::io::Result<Vec<u8>> {
+	fn serialize(&mut self) -> std::io::Result<Vec<u8>> {
 		let scope = &mut self.scope;
 		let ans = self
 			.scan_ans
@@ -268,20 +283,5 @@ impl<'s, 'i> V8<'s, 'i> {
 			.unwrap()
 			.to_rust_string_lossy(scope);
 		Ok(Vec::from(ans))
-	}
-}
-
-impl<'s, 'i> Lang for V8<'s, 'i> {
-	fn init() {
-		let platform = v8::new_default_platform(0, false).make_shared();
-		v8::V8::initialize_platform(platform);
-		v8::V8::initialize();
-	}
-
-	fn deinit() {
-		unsafe {
-			v8::V8::dispose();
-			v8::V8::dispose_platform();
-		}
 	}
 }
