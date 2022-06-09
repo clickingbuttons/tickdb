@@ -4,11 +4,11 @@ use http::Response;
 use httparse::Request;
 use log::debug;
 use nix::{
-	sys::{signal, wait::waitpid},
+	sys::wait::waitpid,
 	unistd::{fork, ForkResult, Pid}
 };
 use server::{
-	langs::{v8::V8, Lang},
+	langs::{v8::V8, julia::Julia},
 	query::handle_query
 };
 use simple_logger::SimpleLogger;
@@ -17,15 +17,12 @@ use std::{
 	env::var,
 	fs::read_dir,
 	io::{Read, Write},
-	net::TcpListener,
-	process::exit
+	net::TcpListener
 };
 use tickdb::table::{paths::get_data_path, Table};
 
 const PORT: &str = "8080";
 const BUFFER_SIZE: usize = 1 << 16;
-
-extern "C" fn handle_sigint(_: i32) { exit(0); }
 
 fn handle_request(
 	req: &Request,
@@ -61,17 +58,6 @@ fn get_http_header(response: &Response<Vec<u8>>) -> String {
 	header
 }
 
-fn register_signal() {
-	let sig_action = signal::SigAction::new(
-		signal::SigHandler::Handler(handle_sigint),
-		signal::SaFlags::SA_NODEFER,
-		signal::SigSet::empty()
-	);
-	unsafe {
-		signal::sigaction(signal::SIGINT, &sig_action).unwrap();
-	}
-}
-
 fn open_tables() -> HashMap<String, Table> {
 	let mut res = HashMap::new();
 	let data_dir = get_data_path("");
@@ -96,25 +82,29 @@ fn main() {
 	SimpleLogger::new().init().unwrap();
 	debug!("start");
 
-	let listener = TcpListener::bind(format!("0.0.0.0:{}", PORT)).unwrap();
+	let addr = format!("0.0.0.0:{}", PORT);
+
+	let listener = TcpListener::bind(&addr).unwrap();
 
 	let num_procs = var("TICKDB_NUM_PROCS")
 		.unwrap_or("1".to_string())
 		.parse::<i64>()
 		.unwrap();
 
+	debug!("opening tables");
 	let tables = open_tables();
 
 	for _ in 0..num_procs {
 		match unsafe { fork() } {
 			Ok(ForkResult::Child) => {
 				println!("fork {}", std::process::id());
-				register_signal();
 
 				V8::init();
+				Julia::init();
 				debug!("scripting init");
 
 				let mut buffer = [0; BUFFER_SIZE];
+				debug!("listening on {}", addr);
 				for stream in listener.incoming() {
 					let stream = &mut stream.unwrap();
 					debug!("stream start");
@@ -124,9 +114,9 @@ fn main() {
 					let mut request = Request::new(&mut headers);
 					let body_offset: usize = request.parse(&buffer).unwrap().unwrap();
 					let body = &buffer[body_offset..request_size];
-					debug!("read stream");
+					debug!("stream end {}", body.len());
 
-					// println!("handle_request {}", std::str::from_utf8(&buffer[..request_size]).unwrap());
+					println!("handle_request {}", std::str::from_utf8(&buffer).unwrap());
 					let response = handle_request(&request, body, &tables);
 					stream.write(get_http_header(&response).as_bytes()).unwrap();
 					stream.write(response.body()).unwrap();
@@ -140,4 +130,5 @@ fn main() {
 	drop(listener);
 
 	waitpid(Some(Pid::from_raw(-1)), None).unwrap();
+	debug!("joined");
 }

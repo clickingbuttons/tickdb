@@ -222,6 +222,12 @@ pub struct V8<'s, 'i> {
 }
 
 impl<'s, 'i> V8<'s, 'i> {
+	pub fn init() {
+		let platform = v8::new_default_platform(0, false).make_shared();
+		v8::V8::initialize_platform(platform);
+		v8::V8::initialize();
+	}
+
 	pub fn new(
 		query: &Query,
 		handle_scope: &'i mut v8::HandleScope<'s, ()>
@@ -247,18 +253,6 @@ impl<'s, 'i> V8<'s, 'i> {
 }
 
 impl<'s, 'i> Lang for V8<'s, 'i> {
-	fn init() {
-		let platform = v8::new_default_platform(0, false).make_shared();
-		v8::V8::initialize_platform(platform);
-		v8::V8::initialize();
-	}
-
-	fn deinit() {
-		unsafe {
-			v8::V8::dispose();
-			v8::V8::dispose_platform();
-		}
-	}
 
 	fn get_cols(&mut self) -> std::io::Result<Vec<String>> {
 		let runtime_fn = get_fn(RUNTIME_FN_NAME, &mut self.scope, self.global)?;

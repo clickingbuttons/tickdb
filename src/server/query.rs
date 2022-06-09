@@ -1,4 +1,4 @@
-use crate::server::langs::{v8::V8, Lang, SCAN_FN_NAME};
+use crate::server::langs::{v8::V8, julia::Julia, Lang, SCAN_FN_NAME};
 use chrono::{DateTime, NaiveDate};
 use http::Response;
 use httparse::Request;
@@ -119,10 +119,13 @@ fn handle_scan(
 		_ => None
 	};
 
-	let mut lang = match query.lang {
+	let mut lang: Box<dyn Lang> = match query.lang {
 		QueryLang::JavaScript => {
 			let scope = isolate_scope.as_mut().unwrap();
-			V8::new(&query, scope).expect("V8::new")
+			Box::new(V8::new(&query, scope).expect("V8::new"))
+		}
+		QueryLang::Julia => {
+			Box::new(Julia::new(&query).expect("julia"))
 		}
 		QueryLang::Unknown => {
 			error_code!(422, format!("unknown query language {:?}", query.lang))
