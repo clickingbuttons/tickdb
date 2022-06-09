@@ -40,7 +40,7 @@ fn handle_request(
 			.unwrap(),
 		Some(m) => match m {
 			"GET" => builder.body(Vec::from("tickdb here\n")).unwrap(),
-			"POST" => builder.body(handle_query(req, body, tables)).unwrap(),
+			"POST" => handle_query(req, body, tables),
 			_ => builder.status(404).body(Vec::from("not found\n")).unwrap()
 		}
 	}

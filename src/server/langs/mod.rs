@@ -2,7 +2,7 @@ pub mod v8;
 use serde::{ser::Serializer, Serialize};
 use std::time::Duration;
 
-const SCAN_FN_NAME: &str = "scan";
+pub const SCAN_FN_NAME: &str = "scan";
 
 pub trait Lang {
 	fn init();

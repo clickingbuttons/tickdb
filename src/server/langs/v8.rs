@@ -1,17 +1,11 @@
 // https://v8.dev/docs/embed
-use super::{Lang, LangScanRes, SCAN_FN_NAME};
+use super::{Lang, SCAN_FN_NAME};
 use crate::server::query::Query;
-use log::debug;
 use std::{
-	collections::HashMap,
 	ffi::c_void,
-	io::{Error, ErrorKind},
-	time::Instant
+	io::{Error, ErrorKind}
 };
-use tickdb::{
-	schema::ColumnType,
-	table::{read::PartitionColumn, Table}
-};
+use tickdb::{schema::ColumnType, table::read::PartitionColumn};
 
 const RUNTIME_FN_NAME: &str = "tickdb_get_params";
 unsafe extern "C" fn backing_store_deleter(
@@ -139,9 +133,6 @@ fn eval<'s>(scope: &mut v8::HandleScope<'s>, code: &str, file: &str) -> std::io:
 	Ok(())
 }
 
-#[derive(Debug)]
-pub struct V8 {}
-
 fn get_fn<'s>(
 	name: &str,
 	scope: &mut v8::HandleScope<'s>,
@@ -155,27 +146,6 @@ fn get_fn<'s>(
 	})?;
 
 	Ok(v8_fn)
-}
-
-fn get_cols<'s>(
-	scan_fn: v8::Local<'s, v8::Function>,
-	scope: &mut v8::HandleScope<'s>,
-	global: v8::Local<'s, v8::Object>
-) -> std::io::Result<Vec<String>> {
-	let runtime_fn = get_fn(RUNTIME_FN_NAME, scope, global)?;
-
-	let args = runtime_fn
-		.call(scope, global.into(), &[scan_fn.into()])
-		.expect("runtime_fn call");
-	let args = v8::Local::<v8::Array>::try_from(args).expect("args");
-	let mut cols = Vec::<String>::with_capacity(args.length() as usize);
-	for i in 0..args.length() {
-		let val = args.get_index(scope, i).unwrap();
-		let val = val.to_string(scope).unwrap();
-		let val = val.to_rust_string_lossy(scope);
-		cols.push(val);
-	}
-	Ok(cols)
 }
 
 fn get_buffer<'s>(
@@ -224,68 +194,84 @@ fn get_buffer<'s>(
 	v8::Local::<v8::Value>::try_from(buffer).unwrap()
 }
 
-impl V8 {
-	pub fn scan(query: &Query, tables: &HashMap<String, Table>) -> std::io::Result<LangScanRes> {
-		debug!("scan start");
-		let table = tables.get(&query.table);
-		if table.is_none() {
-			let msg = format!("table {} is not loaded", query.table);
-			return Err(Error::new(ErrorKind::Other, msg));
-		}
-		let table = table.unwrap();
-		let isolate = &mut v8::Isolate::new(v8::CreateParams::default());
-		isolate.set_capture_stack_trace_for_uncaught_exceptions(true, 32);
+pub struct V8<'s, 'i> {
+	scope:    v8::ContextScope<'i, v8::HandleScope<'s, v8::Context>>,
+	// scope:   v8::TryCatch<'i, v8::HandleScope<'s, v8::Context>>,
+	global:   v8::Local<'s, v8::Object>,
+	scan_fn:  v8::Local<'s, v8::Function>,
+	scan_ans: v8::Local<'s, v8::Value>
+}
 
-		let handle_scope = &mut v8::HandleScope::new(isolate);
+impl<'s, 'i> V8<'s, 'i> {
+	pub fn new(
+		query: &Query,
+		handle_scope: &'i mut v8::HandleScope<'s, ()>
+	) -> std::io::Result<Self> {
 		let context = v8::Context::new(handle_scope);
-		let scope = &mut v8::ContextScope::new(handle_scope, context);
+		let mut scope = v8::ContextScope::new(handle_scope, context);
 
-		eval(scope, include_str!("./runtime.js"), "runtime.js")?;
-		eval(scope, &query.source.text, &query.source.path)?;
+		eval(&mut scope, include_str!("./runtime.js"), "runtime.js")?;
+		eval(&mut scope, &query.source.text, &query.source.path)?;
 
-		let global = context.global(scope);
-		let scan_fn = get_fn(SCAN_FN_NAME, scope, global)?;
-		let cols = get_cols(scan_fn, scope, global)?;
-		if cols.len() == 0 {
-			let msg = format!("function {} must have arguments", SCAN_FN_NAME);
+		let global = context.global(&mut scope);
+		let scan_fn = get_fn(SCAN_FN_NAME, &mut scope, global)?;
+
+		let scan_ans: v8::Local<v8::Value> = v8::undefined(&mut scope).into();
+
+		Ok(Self {
+			scope,
+			global,
+			scan_fn,
+			scan_ans
+		})
+	}
+
+	pub fn get_cols(&mut self) -> std::io::Result<Vec<String>> {
+		let runtime_fn = get_fn(RUNTIME_FN_NAME, &mut self.scope, self.global)?;
+
+		let args = runtime_fn
+			.call(&mut self.scope, self.global.into(), &[self.scan_fn.into()])
+			.expect("runtime_fn call");
+		let args = v8::Local::<v8::Array>::try_from(args).expect("args");
+		let mut cols = Vec::<String>::with_capacity(args.length() as usize);
+		for i in 0..args.length() {
+			let val = args.get_index(&mut self.scope, i).unwrap();
+			let val = val.to_string(&mut self.scope).unwrap();
+			let val = val.to_rust_string_lossy(&mut self.scope);
+			cols.push(val);
+		}
+		Ok(cols)
+	}
+
+	pub fn scan_partition(&mut self, p: Vec<PartitionColumn>) -> std::io::Result<()> {
+		let scope = &mut v8::TryCatch::new(&mut self.scope);
+		let args = p.iter().map(|c| get_buffer(c, scope)).collect::<Vec<_>>();
+
+		let res = self
+			.scan_fn
+			.call(scope, self.global.into(), args.as_slice());
+		if res.is_none() {
+			let msg = scope.message().unwrap();
+			let msg = fmt_error(scope, msg, "query.js");
 			return Err(Error::new(ErrorKind::Other, msg));
 		}
-		let partitions = table.partition_iter(query.from, query.to, cols);
+		self.scan_ans = res.unwrap();
 
-		let mut ans: v8::Local<v8::Value> = v8::undefined(scope).into();
-		let scope = &mut v8::TryCatch::new(scope);
-		let start_loop = Instant::now();
-		let mut row_count: u64 = 0;
-		let mut bytes_read: u64 = 0;
-		debug!("scan loop start");
-		for p in partitions {
-			let args = p.iter().map(|c| get_buffer(c, scope)).collect::<Vec<_>>();
-			row_count += p[0].row_count as u64;
-			for c in p {
-				bytes_read += c.slice.len() as u64;
-			}
+		Ok(())
+	}
 
-			let res = scan_fn.call(scope, global.into(), args.as_slice());
-			if res.is_none() {
-				let msg = scope.message().unwrap();
-				let msg = fmt_error(scope, msg, "query.js");
-				return Err(Error::new(ErrorKind::Other, msg));
-			}
-			ans = res.unwrap();
-		}
-		debug!("scan loop end");
-		let ans = ans.to_string(scope).unwrap().to_rust_string_lossy(scope);
-		Ok(LangScanRes {
-			elapsed_loop: start_loop.elapsed(),
-			row_count,
-			bytes_read,
-			bytes_out: ans.len() as u64,
-			bytes: Vec::from(ans)
-		})
+	pub fn serialize(&mut self) -> std::io::Result<Vec<u8>> {
+		let scope = &mut self.scope;
+		let ans = self
+			.scan_ans
+			.to_string(scope)
+			.unwrap()
+			.to_rust_string_lossy(scope);
+		Ok(Vec::from(ans))
 	}
 }
 
-impl Lang for V8 {
+impl<'s, 'i> Lang for V8<'s, 'i> {
 	fn init() {
 		let platform = v8::new_default_platform(0, false).make_shared();
 		v8::V8::initialize_platform(platform);
