@@ -1,4 +1,4 @@
-use crate::server::langs::{v8::V8, SCAN_FN_NAME};
+use crate::server::langs::{v8::V8, Lang, SCAN_FN_NAME};
 use chrono::{DateTime, NaiveDate};
 use http::Response;
 use httparse::Request;
@@ -7,12 +7,13 @@ use serde::{de, Deserialize};
 use std::{
 	collections::HashMap,
 	ffi::OsStr,
+	fmt::{Display, Formatter},
 	io::{Error, ErrorKind},
 	path::Path,
 	time::Instant
 };
 use tickdb::table::Table;
-use crate::server::langs::Lang;
+use v8::{HandleScope, Isolate};
 
 #[derive(Debug, Deserialize, PartialEq, Eq, Copy, Clone)]
 pub enum QueryLang {
@@ -76,10 +77,30 @@ impl Default for ScanStats {
 	}
 }
 
+impl Display for ScanStats {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+		write!(f, "ScanStats {{\n")?;
+		write!(f, "  row_count: {}\n", self.row_count)?;
+		write!(f, "  byte_count: {}\n", self.byte_count)?;
+		write!(f, "  loop_secs: {}\n", self.loop_secs)?;
+		write!(
+			f,
+			"  loop_GBps: {}\n",
+			self.byte_count as f64 / self.loop_secs / 1e9
+		)?;
+		write!(
+			f,
+			"  loop_Mrps: {}\n",
+			self.row_count as f64 / self.loop_secs / 1e6
+		)?;
+		write!(f, "}}")
+	}
+}
+
 macro_rules! error_code {
-    ( $code:expr, $msg:expr ) => {
-			return Err(($code, $msg.to_string()))
-    }
+	( $code:expr, $msg:expr ) => {
+		return Err(($code, $msg.to_string()))
+	};
 }
 
 fn handle_scan(
@@ -90,20 +111,22 @@ fn handle_scan(
 	// a scan. If you can find a way to get them out of here and into "struct V8"
 	// please do so.
 	let mut isolate = match query.lang {
-		QueryLang::JavaScript => Some(v8::Isolate::new(v8::CreateParams::default())),
+		QueryLang::JavaScript => Some(Isolate::new(v8::CreateParams::default())),
 		_ => None
 	};
 	let mut isolate_scope = match query.lang {
-		QueryLang::JavaScript => Some(v8::HandleScope::new(isolate.as_mut().unwrap())),
+		QueryLang::JavaScript => Some(HandleScope::new(isolate.as_mut().unwrap())),
 		_ => None
 	};
 
 	let mut lang = match query.lang {
-		QueryLang::JavaScript => V8::new(&query, isolate_scope.as_mut().unwrap()).expect("V8::new"),
-		QueryLang::Unknown => error_code!(
-			422,
-			"must specify query language or have known file extension"
-		),
+		QueryLang::JavaScript => {
+			let scope = isolate_scope.as_mut().unwrap();
+			V8::new(&query, scope).expect("V8::new")
+		}
+		QueryLang::Unknown => {
+			error_code!(422, format!("unknown query language {:?}", query.lang))
+		}
 		lang => error_code!(422, format!("unsupported lang {:?}", lang))
 	};
 
@@ -117,7 +140,10 @@ fn handle_scan(
 		Ok(c) => c
 	};
 	if cols.len() == 0 {
-		error_code!(422, format!("function {} must have arguments", SCAN_FN_NAME))
+		error_code!(
+			422,
+			format!("function {} must have arguments", SCAN_FN_NAME)
+		);
 	}
 
 	let mut stats = ScanStats::default();
@@ -138,11 +164,7 @@ fn handle_scan(
 	match lang.serialize() {
 		Err(e) => error_code!(500, format!("error serializing scan_ans: {}", e)),
 		Ok(bytes) => {
-			info!(
-				"loop {} GBps {} Mrps",
-				stats.byte_count as f64 / stats.loop_secs / 1e9,
-				stats.row_count as f64 / stats.loop_secs / 1e6
-			);
+			info!("{}", stats);
 			Ok(bytes)
 		}
 	}
@@ -206,7 +228,10 @@ where
 	impl<'de> de::Visitor<'de> for StringVisitor {
 		type Value = i64;
 
-		fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+		fn expecting(
+			&self,
+			formatter: &mut std::fmt::Formatter
+		) -> std::fmt::Result {
 			formatter.write_str("a rfc 3339 string")
 		}
 

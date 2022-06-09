@@ -85,7 +85,9 @@ fn initialize_agg1d(index: i64) -> Table {
 	agg1d
 }
 
-fn get_f64_sum(slice: &[f32]) -> f64 { slice.iter().map(|v| *v as f64).sum::<f64>() }
+fn get_f64_sum(slice: &[f32]) -> f64 {
+	slice.iter().map(|v| *v as f64).sum::<f64>()
+}
 
 #[test]
 fn sum_ohlcv_rust() {

@@ -125,7 +125,11 @@ pub struct PartitionIterator<'a> {
 	partition_index: usize
 }
 
-fn binary_search_seek(haystack: &[i64], needle: i64, seek_start: bool) -> Result<usize, usize> {
+fn binary_search_seek(
+	haystack: &[i64],
+	needle: i64,
+	seek_start: bool
+) -> Result<usize, usize> {
 	let mut index = haystack.binary_search(&needle);
 	if let Ok(ref mut i) = index {
 		// Seek to beginning/end
@@ -144,8 +148,14 @@ fn binary_search_seek(haystack: &[i64], needle: i64, seek_start: bool) -> Result
 	index
 }
 
-fn find_ts(ts_column: &ColumnFile, row_count: usize, needle: i64, seek_start: bool) -> usize {
-	let data = unsafe { from_raw_parts(ts_column.data.as_ptr() as *const i64, row_count) };
+fn find_ts(
+	ts_column: &ColumnFile,
+	row_count: usize,
+	needle: i64,
+	seek_start: bool
+) -> usize {
+	let data =
+		unsafe { from_raw_parts(ts_column.data.as_ptr() as *const i64, row_count) };
 	let search_results = binary_search_seek(data, needle, seek_start);
 	match search_results {
 		Ok(n) => n,
@@ -192,7 +202,8 @@ impl<'a> Iterator for PartitionIterator<'a> {
 				// println!("col_file {} {:?}", table_column_index, col_file);
 				let slice = unsafe {
 					from_raw_parts(
-						col_file.data.as_ptr().add(start_row * table_column.stride) as *const u8,
+						col_file.data.as_ptr().add(start_row * table_column.stride)
+							as *const u8,
 						row_count * table_column.stride
 					)
 				};

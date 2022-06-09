@@ -50,7 +50,9 @@ impl Table {
 			.write(true)
 			.create(true)
 			.open(&self.meta_path)
-			.unwrap_or_else(|_| panic!("Could not open meta file {:?}", &self.meta_path));
+			.unwrap_or_else(|_| {
+				panic!("Could not open meta file {:?}", &self.meta_path)
+			});
 
 		self.partitions.sort_unstable_by_key(|p| p.ts_bounds.min);
 

@@ -31,7 +31,8 @@ impl Table {
 				i
 			}
 			None => {
-				create_dir_all(&dir).unwrap_or_else(|_| panic!("Cannot create dir {:?}", &dir));
+				create_dir_all(&dir)
+					.unwrap_or_else(|_| panic!("Cannot create dir {:?}", &dir));
 				let date = ts.to_naive_date_time();
 				self.partitions.push(Partition {
 					dir,
@@ -66,14 +67,15 @@ impl Table {
 				let size = file.data.len();
 				drop(&file.data);
 				// println!("{} grow {} -> {}", c.name, size, size * 2);
-				file
-					.file
-					.set_len(size as u64 * 2)
-					.unwrap_or_else(|e| panic!("Could not truncate {:?} to {}: {}", file, size * 2, e));
+				file.file.set_len(size as u64 * 2).unwrap_or_else(|e| {
+					panic!("Could not truncate {:?} to {}: {}", file, size * 2, e)
+				});
 				unsafe {
 					file.data = memmap::MmapOptions::new()
 						.map_mut(&file.file)
-						.unwrap_or_else(|_| panic!("Could not mmapp after grow {:?}", file));
+						.unwrap_or_else(|_| {
+							panic!("Could not mmapp after grow {:?}", file)
+						});
 				}
 			}
 		}

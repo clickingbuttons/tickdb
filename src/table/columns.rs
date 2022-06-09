@@ -16,9 +16,9 @@ impl Table {
 			.unwrap_or_else(|_| panic!("Unable to open file {:?}", path));
 
 		let init_size = max(p.row_count, DEFAULT_ROWS) * c.stride;
-		file
-			.set_len(init_size as u64)
-			.unwrap_or_else(|e| panic!("Could not truncate {:?} to {}: {}", path, init_size, e));
+		file.set_len(init_size as u64).unwrap_or_else(|e| {
+			panic!("Could not truncate {:?} to {}: {}", path, init_size, e)
+		});
 		unsafe {
 			let data = memmap::MmapOptions::new()
 				.map_mut(&file)

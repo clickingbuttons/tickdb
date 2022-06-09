@@ -46,7 +46,8 @@ impl Table {
 		if meta_path.exists() {
 			remove_dir_all(&data_path).expect(&format!("rm -rf {:?}", data_path));
 		}
-		create_dir_all(&data_path).unwrap_or_else(|_| panic!("Cannot create dir {:?}", data_path));
+		create_dir_all(&data_path)
+			.unwrap_or_else(|_| panic!("Cannot create dir {:?}", data_path));
 
 		let mut table = Table {
 			schema,

@@ -39,7 +39,8 @@ pub fn get_partition_dir(schema: &Schema, val: i64) -> PathBuf {
 pub fn get_col_path(p: &Partition, column: &Column) -> PathBuf {
 	let mut path = PathBuf::from(&p.dir);
 	path.push(&column.name);
-	path.set_extension(String::from(format!("{:?}", column.r#type).to_lowercase()));
+	path
+		.set_extension(String::from(format!("{:?}", column.r#type).to_lowercase()));
 	path
 }
 

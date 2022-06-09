@@ -17,9 +17,14 @@ unsafe extern "C" fn backing_store_deleter(
 
 macro_rules! arr_view {
 	($scope: expr, $buffer: expr, $len: expr, $_type: ty, $node_type: ident) => {
-		v8::$node_type::new($scope, $buffer, 0, $len / std::mem::size_of::<$_type>())
-			.unwrap()
-			.into()
+		v8::$node_type::new(
+			$scope,
+			$buffer,
+			0,
+			$len / std::mem::size_of::<$_type>()
+		)
+		.unwrap()
+		.into()
 	};
 }
 
@@ -87,7 +92,11 @@ fn fmt_stack_trace<'s>(
 //     at Object.<anonymous> (/home/thesm/src/tickdb/tests/query.js:12:1)
 //
 // V8 v10.3.174.6
-fn fmt_error(scope: &mut v8::HandleScope, msg: v8::Local<v8::Message>, fname: &str) -> String {
+fn fmt_error(
+	scope: &mut v8::HandleScope,
+	msg: v8::Local<v8::Message>,
+	fname: &str
+) -> String {
 	let mut res = String::from(fname);
 	let lineno = msg.get_line_number(scope);
 	if lineno.is_some() {
@@ -112,7 +121,11 @@ fn fmt_error(scope: &mut v8::HandleScope, msg: v8::Local<v8::Message>, fname: &s
 	res
 }
 
-fn eval<'s>(scope: &mut v8::HandleScope<'s>, code: &str, file: &str) -> std::io::Result<()> {
+fn eval<'s>(
+	scope: &mut v8::HandleScope<'s>,
+	code: &str,
+	file: &str
+) -> std::io::Result<()> {
 	let scope = &mut v8::EscapableHandleScope::new(scope);
 	let source = v8::String::new(scope, code).unwrap();
 	let scope = &mut v8::TryCatch::new(scope);
@@ -157,8 +170,12 @@ fn get_buffer<'s>(
 		let csf = c.column.symbol_file.as_ref().expect("symbol_file open");
 		for (i, sym_index) in c.get_u64().iter().enumerate() {
 			let sym = &csf.symbols[*sym_index as usize - 1];
-			let sym =
-				v8::String::new_from_one_byte(scope, sym.as_bytes(), v8::NewStringType::Normal).unwrap();
+			let sym = v8::String::new_from_one_byte(
+				scope,
+				sym.as_bytes(),
+				v8::NewStringType::Normal
+			)
+			.unwrap();
 			buffer.set_index(scope, i as u32, sym.into());
 		}
 
@@ -187,7 +204,9 @@ fn get_buffer<'s>(
 		ColumnType::U8 => arr_view!(scope, buffer, buffer_len, u8, Uint8Array),
 		ColumnType::U16 => arr_view!(scope, buffer, buffer_len, u16, Uint16Array),
 		ColumnType::U32 => arr_view!(scope, buffer, buffer_len, u32, Uint32Array),
-		ColumnType::U64 => arr_view!(scope, buffer, buffer_len, u64, BigUint64Array),
+		ColumnType::U64 => {
+			arr_view!(scope, buffer, buffer_len, u64, BigUint64Array)
+		}
 		ColumnType::Symbol => panic!("symbols have no array view")
 	};
 

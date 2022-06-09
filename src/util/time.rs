@@ -68,7 +68,8 @@ const YEAR_FMTS: [&str; 5] = [
 	"%Y"  // Year	2001
 ];
 
-const DAYS_IN_MONTH: [i64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const DAYS_IN_MONTH: [i64; 12] =
+	[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 fn is_leap(year: i32) -> bool {
 	if year % 400 == 0 {
