@@ -1,7 +1,7 @@
 using HTTP
 using JSON
 
-fname = "query.jl"
+fname = string(@__DIR__) * "/query.jl"
 f = open(fname, "r")
 query = read(f, String)
 close(f)

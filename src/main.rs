@@ -1,5 +1,7 @@
 mod server;
-
+use std::str::from_utf8;
+use std::io::{Error, ErrorKind};
+use std::net::TcpStream;
 use http::Response;
 use httparse::Request;
 use log::debug;
@@ -78,6 +80,69 @@ fn open_tables() -> HashMap<String, Table> {
 	res
 }
 
+struct Req<'a> {
+	headers: [httparse::Header<'a>; 16],
+	buffer: &'a mut [u8; BUFFER_SIZE],
+	pub request: Request<'a, 'a>,
+	pub body: &'a [u8]
+}
+
+impl<'a> Req<'a> {
+	pub fn new() -> Self {
+		let mut headers = [httparse::EMPTY_HEADER; 16];
+		let request = Request::new(&mut headers);
+		let buffer = [0; BUFFER_SIZE];
+		Self {
+			headers,
+			buffer, 
+			request,
+			body: &buffer[..0]
+		}
+	}
+
+	pub fn parse(&mut self, stream: &mut TcpStream) -> std::io::Result<()> {
+		let mut total_size: usize = 0;
+		let mut body_offset: usize = 0;
+		loop {
+			total_size += stream.read(&mut self.buffer)?;
+			match self.request.parse(&self.buffer) {
+				Ok(status) => match status {
+					httparse::Status::Complete(o) => {
+						body_offset = o;
+						break;
+					},
+					httparse::Status::Partial => {}
+				},
+				Err(e) => {
+					return Err(Error::new(ErrorKind::Other, e.to_string()));
+				}
+			};
+		}
+		let expected_size = match self.request.headers.iter().find(|h| h.name.to_lowercase() == "content-length") {
+			Some(h) => match from_utf8(h.value) {
+				Ok(s) => match s.parse::<usize>() {
+					Ok(v) => v,
+					Err(e) => {
+						return Err(Error::new(ErrorKind::Other, e.to_string()));
+					}
+				},
+				Err(e) => {
+					return Err(Error::new(ErrorKind::Other, e.to_string()));
+				}
+			},
+			None => 0
+		};
+
+		let mut body_size: usize = total_size - body_offset;
+		while body_size < expected_size {
+			body_size += stream.read(&mut self.buffer)?;
+		}
+
+		//self.body = &self.buffer[body_offset..body_size];
+		return Ok(());
+	}
+}
+
 fn main() {
 	SimpleLogger::new().init().unwrap();
 	debug!("start");
@@ -103,20 +168,23 @@ fn main() {
 				Julia::init();
 				debug!("scripting init");
 
-				let mut buffer = [0; BUFFER_SIZE];
 				debug!("listening on {}", addr);
 				for stream in listener.incoming() {
 					let stream = &mut stream.unwrap();
-					debug!("stream start");
-					let request_size = stream.read(&mut buffer).unwrap();
+					let (request, body) = match parse_request(stream, headers, buffer) {
+						Ok((r, b)) => (r, b),
+						Err(e) => {
+							let builder = Response::builder();
+							let msg = format!("error parsing request: {}", e);
+							let msg = Vec::from(msg.into_bytes());
+							let response = builder.status(400).body(msg).unwrap();
+							stream.write(get_http_header(&response).as_bytes()).unwrap();
+							stream.write(response.body()).unwrap();
+							continue;
+						}
+					};
 
-					let mut headers = [httparse::EMPTY_HEADER; 16];
-					let mut request = Request::new(&mut headers);
-					let body_offset: usize = request.parse(&buffer).unwrap().unwrap();
-					let body = &buffer[body_offset..request_size];
-					debug!("stream end {}", body.len());
-
-					println!("handle_request {}", std::str::from_utf8(&buffer).unwrap());
+					//println!("handle_request {}", from_utf8(&buffer).unwrap());
 					let response = handle_request(&request, body, &tables);
 					stream.write(get_http_header(&response).as_bytes()).unwrap();
 					stream.write(response.body()).unwrap();
