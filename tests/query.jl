@@ -1,5 +1,4 @@
-sums = [0.0, 0.0, 0.0, 0.0, 0.0]
-total = 0
+total = Float32(0)
 function scan(
 	open::Vector{Float32},
 	high::Vector{Float32},
@@ -7,11 +6,11 @@ function scan(
 	close::Vector{Float32},
 	volume::Vector{UInt64}
 )
-	global total += size(close, 1)
-	global sums[1] += sum(map((x) -> convert(Float64, x), open))
-	global sums[2] += sum(map((x) -> convert(Float64, x), high))
-	global sums[3] += sum(map((x) -> convert(Float64, x), low))
-	global sums[4] += sum(map((x) -> convert(Float64, x), close))
-	global sums[5] += sum(volume)
-	(total, sums)
+	global total += sum(open)
+	global total += sum(high)
+	global total += sum(low)
+	global total += sum(close)
+	global total += sum(volume)
+
+	total
 end

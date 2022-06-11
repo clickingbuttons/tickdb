@@ -148,7 +148,7 @@ pub struct jl_datatype_t {
 
 #[link(name = "julia")]
 extern "C" {
-  pub fn jl_init__threading();
+  pub fn jl_init();
   pub fn jl_is_initialized() -> c_int;
   pub fn jl_eval_string(str: *const c_char) -> *mut jl_value_t;
   pub fn jl_box_bool(x: i8) -> *mut jl_value_t;
@@ -262,7 +262,7 @@ pub unsafe fn jl_symbol_name(s: *mut jl_sym_t) -> *mut u8 {
 pub fn init_julia() {
   unsafe {
     if jl_is_initialized() == 0 {
-      jl_init__threading();
+      jl_init();
       jl_eval_string(c_str!("using Serialization"));
       jl_eval_string(c_str!("using Dates"));
       let ans = jl_eval_string(c_str!("IOBuffer()"));

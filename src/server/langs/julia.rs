@@ -45,7 +45,8 @@ pub struct Julia {
 impl Julia {
 	pub fn init() {
 		unsafe {
-			jl_init__threading();
+			jl_init();
+			jl_eval_string(c_str!("Base.exit_on_sigint(false)"));
 		}
 	}
 
@@ -54,7 +55,7 @@ impl Julia {
 		unsafe {
 			jl_eval_string(jl_string.as_ptr());
 			check_julia_error!();
-			Ok( Self{
+			Ok(Self{
 				scan_fn: jl_eval_string(c_str!("Scan.scan")),
 				scan_ans: jl_nothing,
 				arg_types: Vec::new()
@@ -108,8 +109,10 @@ impl Lang for Julia {
 		unsafe {
 			let func = jl_get_function(jl_main_module, "string");
 			let ans = jl_call1(func, self.scan_ans);
-			let ans = *(jl_get_field(ans, c_str!("data")) as *const jl_array_t);
-			let ans = CStr::from_ptr(ans.data as *const i8).to_str().unwrap();
+			let func = jl_get_function(jl_main_module, "pointer");
+			let ans = jl_call1(func, ans);
+      let ans = jl_unbox_voidpointer(ans);
+			let ans = CStr::from_ptr(ans as *const i8).to_str().unwrap();
 			Ok(Vec::from(ans))
 		}
 	}

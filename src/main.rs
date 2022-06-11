@@ -1,63 +1,34 @@
 mod server;
-use std::str::from_utf8;
-use std::io::{Error, ErrorKind};
-use std::net::TcpStream;
-use http::Response;
-use httparse::Request;
-use log::debug;
-use nix::{
-	sys::wait::waitpid,
-	unistd::{fork, ForkResult, Pid}
-};
+use nix::sys::signal;
+use tiny_http::{Server, Request, Response, Method};
+use log::{debug, error};
 use server::{
 	langs::{v8::V8, julia::Julia},
 	query::handle_query
 };
 use simple_logger::SimpleLogger;
 use std::{
+	process::exit,
 	collections::HashMap,
-	env::var,
-	fs::read_dir,
-	io::{Read, Write},
-	net::TcpListener
+	fs::read_dir
 };
 use tickdb::table::{paths::get_data_path, Table};
 
-const PORT: &str = "8080";
-const BUFFER_SIZE: usize = 1 << 16;
+const ADDR: &str = "0.0.0.0:8080";
 
 fn handle_request(
-	req: &Request,
-	body: &[u8],
+	req: &mut Request,
 	tables: &HashMap<String, Table>
-) -> Response<Vec<u8>> {
-	let builder = Response::builder();
-	match req.method {
-		None => builder
-			.status(400)
-			.body(Vec::from("expected request method\n"))
-			.unwrap(),
-		Some(m) => match m {
-			"GET" => builder.body(Vec::from("tickdb here\n")).unwrap(),
-			"POST" => handle_query(req, body, tables),
-			_ => builder.status(404).body(Vec::from("not found\n")).unwrap()
-		}
+) -> Response<std::io::Cursor<Vec<u8>>> {
+	match req.method() {
+		Method::Get => Response::from_string("tickdb here\n"),
+		Method::Post => {
+			let mut content = String::new();
+			req.as_reader().read_to_string(&mut content).unwrap();
+			handle_query(content.as_bytes(), tables)
+		},
+		_ => Response::from_string("unsupported method").with_status_code(404)
 	}
-}
-
-fn get_http_header(response: &Response<Vec<u8>>) -> String {
-	let mut header = format!(
-		"{:?} {} {}\r\nContent-Length: {}\r\n",
-		response.version(),
-		response.status().as_str(),
-		response.status().canonical_reason().unwrap_or(""),
-		response.body().len()
-	);
-	for (key, val) in response.headers() {
-		header.push_str(&format!("{}: {}\r\n", key, val.to_str().unwrap()));
-	}
-	header.push_str("\r\n");
-	header
 }
 
 fn open_tables() -> HashMap<String, Table> {
@@ -80,123 +51,45 @@ fn open_tables() -> HashMap<String, Table> {
 	res
 }
 
-struct Req<'a> {
-	headers: [httparse::Header<'a>; 16],
-	buffer: &'a mut [u8; BUFFER_SIZE],
-	pub request: Request<'a, 'a>,
-	pub body: &'a [u8]
+// TODO: figure out why julia hangs on sigint
+extern "C" fn handle_sigint(_: i32) {
+	println!("handle signit");
+	exit(0);
 }
-
-impl<'a> Req<'a> {
-	pub fn new() -> Self {
-		let mut headers = [httparse::EMPTY_HEADER; 16];
-		let request = Request::new(&mut headers);
-		let buffer = [0; BUFFER_SIZE];
-		Self {
-			headers,
-			buffer, 
-			request,
-			body: &buffer[..0]
-		}
-	}
-
-	pub fn parse(&mut self, stream: &mut TcpStream) -> std::io::Result<()> {
-		let mut total_size: usize = 0;
-		let mut body_offset: usize = 0;
-		loop {
-			total_size += stream.read(&mut self.buffer)?;
-			match self.request.parse(&self.buffer) {
-				Ok(status) => match status {
-					httparse::Status::Complete(o) => {
-						body_offset = o;
-						break;
-					},
-					httparse::Status::Partial => {}
-				},
-				Err(e) => {
-					return Err(Error::new(ErrorKind::Other, e.to_string()));
-				}
-			};
-		}
-		let expected_size = match self.request.headers.iter().find(|h| h.name.to_lowercase() == "content-length") {
-			Some(h) => match from_utf8(h.value) {
-				Ok(s) => match s.parse::<usize>() {
-					Ok(v) => v,
-					Err(e) => {
-						return Err(Error::new(ErrorKind::Other, e.to_string()));
-					}
-				},
-				Err(e) => {
-					return Err(Error::new(ErrorKind::Other, e.to_string()));
-				}
-			},
-			None => 0
-		};
-
-		let mut body_size: usize = total_size - body_offset;
-		while body_size < expected_size {
-			body_size += stream.read(&mut self.buffer)?;
-		}
-
-		//self.body = &self.buffer[body_offset..body_size];
-		return Ok(());
+fn register_handlers() {
+	let sig_action = signal::SigAction::new(
+		signal::SigHandler::Handler(handle_sigint),
+		signal::SaFlags::SA_NODEFER,
+		signal::SigSet::empty()
+	);
+	unsafe {
+		signal::sigaction(signal::SIGINT, &sig_action).unwrap();
 	}
 }
 
 fn main() {
 	SimpleLogger::new().init().unwrap();
-	debug!("start");
 
-	let addr = format!("0.0.0.0:{}", PORT);
+	debug!("register handlers");
 
-	let listener = TcpListener::bind(&addr).unwrap();
-
-	let num_procs = var("TICKDB_NUM_PROCS")
-		.unwrap_or("1".to_string())
-		.parse::<i64>()
-		.unwrap();
+	let server = Server::http(ADDR).unwrap();
 
 	debug!("opening tables");
 	let tables = open_tables();
 
-	for _ in 0..num_procs {
-		match unsafe { fork() } {
-			Ok(ForkResult::Child) => {
-				println!("fork {}", std::process::id());
+	debug!("initing scripting");
+	V8::init();
+	Julia::init();
 
-				V8::init();
-				Julia::init();
-				debug!("scripting init");
+	// Julia creates its own sigint handler that doesn't exit.
+	// https://github.com/JuliaLang/julia/blob/master/src/signals-unix.c#L967
+	register_handlers();
 
-				debug!("listening on {}", addr);
-				for stream in listener.incoming() {
-					let stream = &mut stream.unwrap();
-					let (request, body) = match parse_request(stream, headers, buffer) {
-						Ok((r, b)) => (r, b),
-						Err(e) => {
-							let builder = Response::builder();
-							let msg = format!("error parsing request: {}", e);
-							let msg = Vec::from(msg.into_bytes());
-							let response = builder.status(400).body(msg).unwrap();
-							stream.write(get_http_header(&response).as_bytes()).unwrap();
-							stream.write(response.body()).unwrap();
-							continue;
-						}
-					};
-
-					//println!("handle_request {}", from_utf8(&buffer).unwrap());
-					let response = handle_request(&request, body, &tables);
-					stream.write(get_http_header(&response).as_bytes()).unwrap();
-					stream.write(response.body()).unwrap();
-					debug!("wrote response");
-				}
-			}
-			Ok(ForkResult::Parent { child: _ }) => {}
-			Err(_) => println!("Fork failed")
+	for mut request in server.incoming_requests() {
+		//println!("handle_request {}", from_utf8(&buffer).unwrap());
+		let response = handle_request(&mut request, &tables);
+		if let Err(e) = request.respond(response) {
+			error!("error sending response: {}", e);
 		}
 	}
-	drop(listener);
-
-	waitpid(Some(Pid::from_raw(-1)), None).unwrap();
-	debug!("joined");
 }

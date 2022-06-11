@@ -21,6 +21,6 @@ headers = Dict(
 	"Content-Type" => "application/json",
 )
 
-resp = HTTP.request("POST", "http://localhost:8080", [], "post body data")
+resp = HTTP.request("POST", "http://localhost:8080", [], post_data)
 
 println(resp)

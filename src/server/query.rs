@@ -1,7 +1,6 @@
 use crate::server::langs::{v8::V8, julia::Julia, Lang, SCAN_FN_NAME};
 use chrono::{DateTime, NaiveDate};
-use http::Response;
-use httparse::Request;
+use tiny_http::Response;
 use log::info;
 use serde::{de, Deserialize};
 use std::{
@@ -58,21 +57,37 @@ pub fn guess_query_lang(path: &str) -> QueryLang {
 	}
 }
 
-#[derive(Debug)]
-struct ScanStats {
-	row_count:  u64,
-	byte_count: u64,
-	loop_start: Instant,
-	loop_secs:  f64
+struct TimeStats {
+	start: Instant,
+	secs: f64
 }
 
-impl Default for ScanStats {
+impl Default for TimeStats {
 	fn default() -> Self {
 		Self {
-			row_count:  0,
+			start:  Instant::now(),
+			secs: 0.0
+		}
+	}
+}
+struct ScanStats {
+	lang: QueryLang,
+	row_count:  u64,
+	byte_count: u64,
+	time_eval: TimeStats,
+	time_loop: TimeStats,
+	time_serialize: TimeStats,
+}
+
+impl ScanStats {
+	pub fn new(lang: QueryLang) -> Self {
+		Self {
+			lang,
+			row_count: 0,
 			byte_count: 0,
-			loop_start: Instant::now(),
-			loop_secs:  0.0
+			time_eval: Default::default(),
+			time_loop: Default::default(),
+			time_serialize: Default::default()
 		}
 	}
 }
@@ -80,18 +95,21 @@ impl Default for ScanStats {
 impl Display for ScanStats {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
 		write!(f, "ScanStats {{\n")?;
+		write!(f, "  lang: {:?}\n", self.lang)?;
 		write!(f, "  row_count: {}\n", self.row_count)?;
 		write!(f, "  byte_count: {}\n", self.byte_count)?;
-		write!(f, "  loop_secs: {}\n", self.loop_secs)?;
+		write!(f, "  time_eval: {}\n", self.time_eval.secs)?;
+		write!(f, "  time_loop: {}\n", self.time_loop.secs)?;
+		write!(f, "  time_serialize: {}\n", self.time_serialize.secs)?;
 		write!(
 			f,
 			"  loop_GBps: {}\n",
-			self.byte_count as f64 / self.loop_secs / 1e9
+			self.byte_count as f64 / self.time_loop.secs / 1e9
 		)?;
 		write!(
 			f,
 			"  loop_Mrps: {}\n",
-			self.row_count as f64 / self.loop_secs / 1e6
+			self.row_count as f64 / self.time_loop.secs / 1e6
 		)?;
 		write!(f, "}}")
 	}
@@ -107,6 +125,7 @@ fn handle_scan(
 	query: &Query,
 	tables: &HashMap<String, Table>
 ) -> Result<Vec<u8>, (u16, String)> {
+	let mut stats = ScanStats::new(query.lang);
 	// V8 requires isolate and isolate_scope be on the stack for the duration of
 	// a scan. If you can find a way to get them out of here and into "struct V8"
 	// please do so.
@@ -122,10 +141,18 @@ fn handle_scan(
 	let mut lang: Box<dyn Lang> = match query.lang {
 		QueryLang::JavaScript => {
 			let scope = isolate_scope.as_mut().unwrap();
-			Box::new(V8::new(&query, scope).expect("V8::new"))
+			let res = V8::new(&query, scope);
+			if let Err(e) = res {
+				error_code!(422, e);
+			}
+			Box::new(res.unwrap())
 		}
 		QueryLang::Julia => {
-			Box::new(Julia::new(&query).expect("julia"))
+			let res = Julia::new(&query);
+			if let Err(e) = res {
+				error_code!(422, e);
+			}
+			Box::new(res.unwrap())
 		}
 		QueryLang::Unknown => {
 			error_code!(422, format!("unknown query language {:?}", query.lang))
@@ -148,9 +175,9 @@ fn handle_scan(
 			format!("function {} must have arguments", SCAN_FN_NAME)
 		);
 	}
+	stats.time_eval.secs = stats.time_eval.start.elapsed().as_secs_f64();
 
-	let mut stats = ScanStats::default();
-
+	stats.time_loop.start = Instant::now();
 	let partitions = table.partition_iter(query.from, query.to, cols);
 	for p in partitions {
 		stats.row_count += p[0].row_count as u64;
@@ -161,37 +188,36 @@ fn handle_scan(
 			error_code!(422, format!("runtime error in {}: {}", SCAN_FN_NAME, e))
 		}
 	}
-
-	stats.loop_secs = stats.loop_start.elapsed().as_secs_f64();
-
-	match lang.serialize() {
+	stats.time_loop.secs = stats.time_loop.start.elapsed().as_secs_f64();
+	
+	stats.time_serialize.start = Instant::now();
+	let res = match lang.serialize() {
 		Err(e) => error_code!(500, format!("error serializing scan_ans: {}", e)),
-		Ok(bytes) => {
-			info!("{}", stats);
-			Ok(bytes)
-		}
-	}
+		Ok(bytes) => bytes
+	};
+	stats.time_serialize.secs = stats.time_serialize.start.elapsed().as_secs_f64();
+
+	info!("{}", stats);
+	Ok(res)
 }
 
 pub fn handle_query(
-	_req: &Request,
 	query: &[u8],
 	tables: &HashMap<String, Table>
-) -> Response<Vec<u8>> {
-	let resp = Response::builder();
+) -> Response<std::io::Cursor<Vec<u8>>> {
 	match serde_json::from_slice::<Query>(query) {
 		Err(err) => {
 			let q = std::str::from_utf8(query).unwrap();
 			let msg = format!("error parsing query {}. query: {}\n", err, q);
-			resp.status(400).body(Vec::from(msg)).unwrap()
+			Response::from_string(msg).with_status_code(400)
 		}
 		Ok(mut query) => {
 			if query.lang == QueryLang::Unknown {
 				query.lang = guess_query_lang(&query.source.path);
 			}
 			match handle_scan(&query, tables) {
-				Err((code, msg)) => resp.status(code).body(Vec::from(msg)).unwrap(),
-				Ok(bytes) => resp.body(bytes).unwrap()
+				Err((code, msg)) => Response::from_string(msg).with_status_code(code),
+				Ok(bytes) => Response::from_data(bytes),
 			}
 		}
 	}
