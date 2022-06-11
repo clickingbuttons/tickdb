@@ -17,9 +17,9 @@ chrono = "0.4"
 memmap = "0.7"
 
 # Server
-nix = "0.24"
+nix = "0.24.1"
 tiny_http = "0.11.0"
-v8 = { path = "../rusty_v8" }
+v8 = "0.43.1"
 log = "0.4.17"
 simple_logger = "2.1.0"
 

@@ -51,9 +51,7 @@ fn open_tables() -> HashMap<String, Table> {
 	res
 }
 
-// TODO: figure out why julia hangs on sigint
 extern "C" fn handle_sigint(_: i32) {
-	println!("handle signit");
 	exit(0);
 }
 fn register_handlers() {
@@ -83,6 +81,8 @@ fn main() {
 
 	// Julia creates its own sigint handler that doesn't exit.
 	// https://github.com/JuliaLang/julia/blob/master/src/signals-unix.c#L967
+	// TODO: Why do they do this? Is there a proper way to undo it and use the
+	// default Rust handler instead?
 	register_handlers();
 
 	for mut request in server.incoming_requests() {
