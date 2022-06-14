@@ -1,5 +1,5 @@
 - [x] abstract v8
-	- [ ] add julia
+	- [x] add julia
 	- [ ] add python
 - [ ] fast strings
 - [ ] indexing

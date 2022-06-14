@@ -3,6 +3,7 @@ use super::Lang;
 use crate::server::query::Query;
 use crate::c_str;
 use tickdb::table::read::PartitionColumn;
+use tickdb::schema::{Column, ColumnType};
 use crate::server::langs::julia_bindings::*;
 use std::{
   ffi::{c_void, CStr, CString},
@@ -58,14 +59,33 @@ impl Julia {
 			Ok(Self{
 				scan_fn: jl_eval_string(c_str!("Scan.scan")),
 				scan_ans: jl_nothing,
-				arg_types: Vec::new()
+				arg_types: Vec::new(),
 			})
 		}
 	}
 }
 
+fn get_expected_type(column: &Column) -> *mut jl_datatype_t {
+  unsafe {
+    match column.r#type {
+      ColumnType::I8 => jl_int8_type,
+      ColumnType::I16 => jl_int16_type,
+      ColumnType::I32 => jl_int32_type,
+      ColumnType::I64 => jl_int64_type,
+      ColumnType::U8 => jl_uint8_type,
+      ColumnType::U16 => jl_uint16_type,
+      ColumnType::U32 => jl_uint32_type,
+      ColumnType::U64 => jl_uint64_type,
+      ColumnType::F32 => jl_float32_type,
+      ColumnType::F64 => jl_float64_type,
+      ColumnType::Timestamp => jl_int64_type,
+			ColumnType::Symbol => jl_string_type,
+    }
+  }
+}
+
 impl Lang for Julia {
-	fn get_cols(&mut self) -> std::io::Result<Vec<String>> {
+	fn get_cols(&mut self, valid_columns: &Vec<Column>) -> std::io::Result<Vec<String>> {
 		unsafe {
 			let n_args = jl_eval_string(c_str!("typeof(Scan.scan).name.mt.defs.func.nargs"));
 			let n_args = (jl_unbox_int32(n_args) - 1) as usize;
@@ -85,9 +105,38 @@ impl Lang for Julia {
 				jl_svec_data(arg_types).add(1) as *mut *mut jl_datatype_t,
 				(*arg_types).length - 1
 			);
-			let arg_types = Vec::from(arg_types);
-			self.arg_types = arg_types;
-			// TODO: typecheck
+			self.arg_types = Vec::from(arg_types);
+			for (arg_name, arg_type) in arg_names.iter().zip(self.arg_types.iter()) {
+				let column = match valid_columns.iter().find(|c| &c.name == arg_name) {
+					Some(c) => c,
+					None => {
+						let err = format!(
+							"column {} does not exist",
+							arg_name
+						);
+						return Err(Error::new(ErrorKind::Other, err));
+					}
+				};
+				let expected_type = get_expected_type(&column);
+				let arg_params = (*(*arg_type)).parameters as *mut jl_svec_t;
+				let arg_params = from_raw_parts(
+					jl_svec_data(arg_params) as *mut *mut jl_value_t,
+					(*arg_params).length
+				);
+				if arg_params.len() != 2
+					|| arg_params[0] != expected_type as *mut jl_value_t
+					|| *arg_params[1] != 1
+				{
+					let expected_type = jl_symbol_name((*(*expected_type).name).name);
+					let expected_type = CStr::from_ptr(expected_type as *const i8);
+					let mut err = format!(
+						"expected parameter \"{}\" to be of type Vector{{{:?}}}",
+						arg_name, expected_type
+					);
+					err.retain(|c| c != '"');
+					return Err(Error::new(ErrorKind::Other, err));
+				}
+			}
 			Ok(arg_names)
 		}
 	}

@@ -8,25 +8,26 @@ impl Table {
 	fn get_union<'a>(
 		&'a self,
 		columns: impl IntoIterator<Item = impl AsRef<str>>
-	) -> Vec<&'a Column> {
-		columns
-			.into_iter()
-			.map(|col_name| {
-				let index = self
-					.schema
-					.columns
-					.iter()
-					.position(|col| &col.name == col_name.as_ref())
-					.unwrap_or_else(|| {
-						panic!(
+	) -> Result<Vec<&'a Column>, String> {
+		let mut res = Vec::new();
+		for col_name in columns.into_iter() {
+			let index = match self
+				.schema
+				.columns
+				.iter()
+				.position(|col| &col.name == col_name.as_ref()) {
+					Some(i) => i,
+					None => {
+						return Err(format!(
 							"column {} does not exist on table {}",
 							col_name.as_ref(),
 							self.schema.name
-						)
-					});
-				&self.schema.columns[index]
-			})
-			.collect::<Vec<&'a Column>>()
+						))
+					}
+				};
+			res.push(&self.schema.columns[index]);
+		}
+		Ok(res)
 	}
 
 	// Inclusive of from and to
@@ -35,7 +36,7 @@ impl Table {
 		from_ts: i64,
 		to_ts: i64,
 		columns: impl IntoIterator<Item = impl AsRef<str>>
-	) -> PartitionIterator<'a> {
+	) -> Result<PartitionIterator<'a>, String> {
 		assert!(to_ts >= from_ts);
 		let partitions = self
 			.partitions
@@ -50,15 +51,16 @@ impl Table {
 			})
 			.collect::<Vec<_>>();
 		// println!("partitions {:?}", partitions);
-		PartitionIterator {
+		let columns = self.get_union(columns)?;
+		Ok(PartitionIterator {
 			table: self,
-			columns: self.get_union(columns),
+			columns,
 			column_files: Vec::new(),
 			from_ts,
 			to_ts,
 			partitions,
 			partition_index: 0
-		}
+		})
 	}
 }
 

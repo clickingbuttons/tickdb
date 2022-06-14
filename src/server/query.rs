@@ -165,7 +165,7 @@ fn handle_scan(
 		Some(t) => t
 	};
 
-	let cols = match lang.get_cols() {
+	let cols = match lang.get_cols(&table.schema.columns) {
 		Err(e) => error_code!(500, e),
 		Ok(c) => c
 	};
@@ -178,7 +178,12 @@ fn handle_scan(
 	stats.time_eval.secs = stats.time_eval.start.elapsed().as_secs_f64();
 
 	stats.time_loop.start = Instant::now();
-	let partitions = table.partition_iter(query.from, query.to, cols);
+	let partitions = match table.partition_iter(query.from, query.to, cols) {
+		Ok(p) => p,
+		Err(e) => {
+			error_code!(422, e)
+		}
+	};
 	for p in partitions {
 		stats.row_count += p[0].row_count as u64;
 		for c in p.iter() {

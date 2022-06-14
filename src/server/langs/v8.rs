@@ -5,7 +5,7 @@ use std::{
 	ffi::c_void,
 	io::{Error, ErrorKind}
 };
-use tickdb::{schema::ColumnType, table::read::PartitionColumn};
+use tickdb::{schema::{Column, ColumnType}, table::read::PartitionColumn};
 
 const RUNTIME_FN_NAME: &str = "tickdb_get_params";
 unsafe extern "C" fn backing_store_deleter(
@@ -253,8 +253,7 @@ impl<'s, 'i> V8<'s, 'i> {
 }
 
 impl<'s, 'i> Lang for V8<'s, 'i> {
-
-	fn get_cols(&mut self) -> std::io::Result<Vec<String>> {
+	fn get_cols(&mut self, _valid_columns: &Vec<Column>) -> std::io::Result<Vec<String>> {
 		let runtime_fn = get_fn(RUNTIME_FN_NAME, &mut self.scope, self.global)?;
 
 		let args = runtime_fn
