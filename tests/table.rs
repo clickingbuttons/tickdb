@@ -97,7 +97,7 @@ fn sum_ohlcv_rust() {
 	let mut total = 0;
 	let partitions = table.partition_iter(FROM_TS, TO_TS, vec![
 		"ts", "sym", "open", "high", "low", "close", "volume",
-	]);
+	]).unwrap();
 	for partition in partitions {
 		sums.0 += partition[0].get_u64().iter().fold(0, |acc, ts| acc ^ ts);
 		sums.1 += partition[1]
